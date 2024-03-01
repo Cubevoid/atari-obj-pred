@@ -8,6 +8,8 @@ wandb = "*"
 torch = "*"
 ocatari = "*"
 numpy = "*"
+pylint = "*"
+gymnasium = {extras = ["accept-rom-license", "atari"], version = "*"}
 
 [dev-packages]
 
