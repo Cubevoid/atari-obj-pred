@@ -10,6 +10,7 @@ ocatari = "*"
 numpy = "*"
 pylint = "*"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "*"}
+mypy = "*"
 
 [dev-packages]
 
