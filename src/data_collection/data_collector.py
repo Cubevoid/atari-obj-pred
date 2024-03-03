@@ -50,7 +50,7 @@ class DataCollector:
                 self.episode_object_types[-1].append(obj.category)
                 self.episode_object_bounding_boxes[-1].append(obj.xywh)
             progress_bar.update(1)
-            if terminated or truncated or True:
+            if terminated or truncated:
                 self.store_episode()
                 obs, info = self.env.reset()
                 print(f"Finished {self.curr_episode_id - 1} episodes. Collected {self.collected_data} samples")
