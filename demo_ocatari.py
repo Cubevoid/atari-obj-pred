@@ -4,7 +4,7 @@ from ocatari.vision.utils import mark_bb, make_darker
 from ocatari.utils import load_agent, parser
 # import matplotlib.pyplot as plt
 
-GAME_NAME = "Pong"
+GAME_NAME = "Assault"
 # MODE = "vision"
 MODE = "revised"
 HUD = False

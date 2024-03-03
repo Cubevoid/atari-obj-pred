@@ -241,7 +241,7 @@ valid-metaclass-classmethod-first-arg = ["mcs"]
 [tool.pylint.design]
 # List of regular expressions of class ancestor names to ignore when counting
 # public methods (see R0903)
-# exclude-too-few-public-methods =
+exclude-too-few-public-methods = ["^Module$"]
 
 # List of qualified class names to ignore when counting class parents (see R0901)
 # ignored-parents =
@@ -365,7 +365,7 @@ confidence = ["HIGH", "CONTROL_FLOW", "INFERENCE", "INFERENCE_FAILURE", "UNDEFIN
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
-disable = ["raw-checker-failed", "bad-inline-option", "locally-disabled", "file-ignored", "suppressed-message", "useless-suppression", "deprecated-pragma", "use-symbolic-message-instead", "use-implicit-booleaness-not-comparison-to-string", "use-implicit-booleaness-not-comparison-to-zero", "missing-docstring"]
+disable = ["E1102", "raw-checker-failed", "bad-inline-option", "locally-disabled", "file-ignored", "suppressed-message", "useless-suppression", "deprecated-pragma", "use-symbolic-message-instead", "use-implicit-booleaness-not-comparison-to-string", "use-implicit-booleaness-not-comparison-to-zero", "missing-docstring"]
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
