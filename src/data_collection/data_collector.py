@@ -4,7 +4,8 @@ import numpy as np
 import numpy.typing as npt
 from ocatari.core import OCAtari
 from ocatari.utils import load_agent
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator # type: ignore
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+import torch # type: ignore
 import tqdm
 import wandb
 
@@ -27,7 +28,7 @@ class DataCollector:
         self.episode_detected_masks : List[List[npt.NDArray]] = []
         self.episode_actions : List[int] = []
 
-        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth")
+        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to("cuda" if torch.cuda.is_available() else "cpu")
         self.generator = SamAutomaticMaskGenerator(sam)
 
     def collect_data(self) -> None:
