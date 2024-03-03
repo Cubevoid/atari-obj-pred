@@ -16,6 +16,7 @@ hydra-core = "*"
 tqdm = "*"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "*"}
 mypy = "*"
+types-tqdm = "*"
 
 [dev-packages]
 
