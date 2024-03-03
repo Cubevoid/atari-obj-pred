@@ -1,4 +1,4 @@
-name: Pylint
+name: Code Quality
 
 on: [push]
 
@@ -23,4 +23,6 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py')
+    - name: Analysing the code with mypy
+      run: |
         mypy $(git ls-files '*.py')

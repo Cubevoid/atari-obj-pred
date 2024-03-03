@@ -5,7 +5,7 @@ class FeatExtractor(torch.nn.Module):
     """
     Performs CNN-based feature extraction and ROI pooling.
     """
-    def __init__(self, input_size = 128, num_frames: int = 4, num_objects: int = 32):
+    def __init__(self, input_size: int = 128, num_frames: int = 4, num_objects: int = 32):
         super().__init__()
         self.num_frames = num_frames
         self.num_objects = num_objects
@@ -16,7 +16,7 @@ class FeatExtractor(torch.nn.Module):
         self.conv2 = torch.nn.Conv2d(64, 128, 3, 1, 1)
         self.relu = torch.nn.ReLU()
 
-    def roi_pool(self, x: torch.Tensor, rois: torch.Tensor):
+    def roi_pool(self, x: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
         """
         For each RoI, extract a fixed-size feature map from x.
         Assume that there are at most num_objects objects in the image.
@@ -34,10 +34,10 @@ class FeatExtractor(torch.nn.Module):
 
         # (B, num_objects, 128, input_size/2, input_size/2)
         masked = x.unsqueeze(1) * rois.unsqueeze(2)
-        return masked.max(dim=(3, 4))  # (B, num_objects, 128)
+        return masked.max(3).values.max(4)  # (B, num_objects, 128)
 
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: (B, 3*num_frames, input_size, input_size) input image tensor
