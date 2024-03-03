@@ -161,3 +161,4 @@ cython_debug/
 models/sam_*
 outputs/
 .vscode/
+wandb/

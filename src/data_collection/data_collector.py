@@ -6,6 +6,7 @@ from ocatari.core import OCAtari
 from ocatari.utils import load_agent
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator # type: ignore
 import tqdm
+import wandb
 
 class DataCollector:
     def __init__(self, game: str, num_samples: int) -> None:
@@ -46,6 +47,7 @@ class DataCollector:
             self.episode_actions.append(action)
             masks = self.generator.generate(obs)
             self.episode_detected_masks.append([mask["segmentation"] for mask in masks])
+            wandb.log({"data_collected": self.collected_data})
             for obj in self.env.objects:
                 self.episode_object_types[-1].append(obj.category)
                 self.episode_object_bounding_boxes[-1].append(obj.xywh)
@@ -68,7 +70,9 @@ class DataCollector:
                             episode_detected_masks=np.array(self.episode_detected_masks),
                             episode_actions=np.array(self.episode_actions))
         self.curr_episode_id += 1
-        self.collected_data += len(self.episode_frames)
+        episode_length = len(self.episode_frames)
+        self.collected_data += episode_length
+        wandb.log({"episode_length": episode_length})
         self.episode_frames = []
         self.episode_object_types = []
         self.episode_object_bounding_boxes = []
