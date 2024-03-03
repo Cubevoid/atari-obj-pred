@@ -8,4 +8,5 @@ def main(cfg: DictConfig):
     data_collector.collect_data()
 
 if __name__ == "__main__":
+    #pylint: disable = no-value-for-parameter
     main()

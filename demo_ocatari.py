@@ -2,11 +2,8 @@ import random
 from ocatari.core import OCAtari
 from ocatari.vision.utils import mark_bb, make_darker
 from ocatari.utils import load_agent, parser
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-# import matplotlib.pyplot as plt
 
 GAME_NAME = "Pong"
-# MODE = "vision"
 MODE = "revised"
 HUD = False
 env = OCAtari(GAME_NAME, mode=MODE, hud=HUD, obs_mode='dqn')

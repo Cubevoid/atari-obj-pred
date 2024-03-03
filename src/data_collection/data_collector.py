@@ -17,9 +17,7 @@ class DataCollector:
 
         self.curr_episode_id = 0
         self.determine_next_episode()
-        
         self.collected_data = self.get_collected_data()
-        
         self.episode_frames = []
         self.episode_object_types = []
         self.episode_object_bounding_boxes = []
@@ -28,17 +26,17 @@ class DataCollector:
 
         sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth")
         self.generator = SamAutomaticMaskGenerator(sam)
-        
+
     def collect_data(self) -> None:
         """
         Collects data from the environment for a given number of steps.
         """
         progress_bar = tqdm.tqdm(total=self.num_samples)
         progress_bar.update(self.collected_data)
-        obs, info = self.env.reset()
+        obs, _ = self.env.reset()
         while self.collected_data < self.num_samples:
             action = self.agent.draw_action(self.env.dqn_obs)
-            obs, reward, terminated, truncated, info = self.env.step(action)
+            obs, _, terminated, truncated, _ = self.env.step(action)
             self.episode_frames.append(obs)
             self.collected_data += 1
             self.episode_object_types.append([])
@@ -52,17 +50,18 @@ class DataCollector:
             progress_bar.update(1)
             if terminated or truncated:
                 self.store_episode()
-                obs, info = self.env.reset()
-                print(f"Finished {self.curr_episode_id - 1} episodes. Collected {self.collected_data} samples")
+                obs, _ = self.env.reset()
+                print(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
         progress_bar.close()
 
     def store_episode(self) -> None:
         """
         Store the current episode to disk
         """
-        np.savez_compressed(f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}.gz", 
-                            episode_frames=np.array(self.episode_frames), 
-                            episode_object_types=np.array(self.episode_object_types), 
+        file_name = f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}.gz"
+        np.savez_compressed(file_name,
+                            episode_frames=np.array(self.episode_frames),
+                            episode_object_types=np.array(self.episode_object_types),
                             episode_object_bounding_boxes=np.array(self.episode_object_bounding_boxes),
                             episode_detected_masks=np.array(self.episode_detected_masks),
                             episode_actions=np.array(self.episode_actions))
@@ -92,5 +91,5 @@ class DataCollector:
             if file.endswith(".gz"):
                 # all files have the format {id)-{length}.gz
                 data += int(file.split("-")[1].split(".")[0])
-                
+
         return data
