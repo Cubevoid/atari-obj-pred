@@ -28,7 +28,8 @@ class DataCollector:
         self.episode_detected_masks : List[List[npt.NDArray]] = []
         self.episode_actions : List[int] = []
 
-        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to("cuda" if torch.cuda.is_available() else "cpu")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to(device)
         self.generator = SamAutomaticMaskGenerator(sam)
 
     def collect_data(self) -> None:
