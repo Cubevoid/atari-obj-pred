@@ -34,7 +34,7 @@ class FeatExtractor(torch.nn.Module):
 
         # (B, num_objects, 128, input_size/2, input_size/2)
         masked = x.unsqueeze(1) * rois.unsqueeze(2)
-        return masked.max(3).values.max(4)  # (B, num_objects, 128)
+        return masked.max(3).values.max(4).values  # (B, num_objects, 128)
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
