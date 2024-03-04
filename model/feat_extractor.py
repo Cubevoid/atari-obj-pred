@@ -21,29 +21,30 @@ class FeatExtractor(torch.nn.Module):
         For each RoI, extract a fixed-size feature map from x.
         Assume that there are at most num_objects objects in the image.
         Args:
-            x: (B, 128, 64, 64) input feature map tensor
+            x: (B, C, input_size/2, input_size/2) input feature map tensor
             rois: (B, input_size, input_size) uint8 ids of the RoIs in the image
         """
         # (B, 32, input_size, input_size) tensor where each channel is a mask for a RoI
-        rois_one_hot = F.one_hot(rois, num_classes=self.num_objects).permute(0, 3, 1, 2)
+        rois_one_hot = F.one_hot(rois.long(), num_classes=self.num_objects).permute(0, 3, 1, 2)
 
         # compensate for conv size - (B, num_objects, input_size/2, input_size/2)
         rois = F.interpolate(rois_one_hot.float(),
-                             size=(self.input_size/2, self.input_size/2),
+                             size=(self.input_size//2, self.input_size//2),
                              mode='nearest')
 
         # (B, num_objects, 128, input_size/2, input_size/2)
         masked = x.unsqueeze(1) * rois.unsqueeze(2)
-        return masked.max(3).values.max(4).values  # (B, num_objects, 128)
+        return masked.max(-2).values.max(-1).values  # (B, num_objects, 128)
 
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, images: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: (B, 3*num_frames, input_size, input_size) input image tensor
+            images: (B, num_frames, 3, input_size, input_size) input image tensor
         Returns:
             (B, 128, 64, 64) feature vector
         """
-        x = self.maxpool(self.relu(self.conv1(x)))
-        x = self.relu(self.conv2(x))
-        return x
+        images = self.maxpool(self.relu(self.conv1(images.flatten(1, 2)/255.)))
+        images = self.relu(self.conv2(images))
+        images = self.roi_pool(images, rois)
+        return images
