@@ -28,8 +28,9 @@ class DataCollector:
         self.episode_detected_masks : List[List[npt.NDArray]] = []
         self.episode_actions : List[int] = []
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to(device)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to(self.device)
+        sam = torch.compile(sam)
         self.generator = SamAutomaticMaskGenerator(sam)
 
     def collect_data(self) -> None:
@@ -43,11 +44,12 @@ class DataCollector:
             action = self.agent.draw_action(self.env.dqn_obs)
             obs, _, terminated, truncated, _ = self.env.step(action)
             self.episode_frames.append(obs)
-            self.collected_data += 1
             self.episode_object_types.append([])
             self.episode_object_bounding_boxes.append([])
             self.episode_actions.append(action)
-            masks = self.generator.generate(obs)
+            with torch.no_grad():
+                with torch.autocast(device_type=self.device, dtype=torch.float16):
+                    masks = self.generator.generate(obs)
             self.episode_detected_masks.append([mask["segmentation"] for mask in masks])
             wandb.log({"data_collected": self.collected_data})
             for obj in self.env.objects:
@@ -56,8 +58,8 @@ class DataCollector:
             progress_bar.update(1)
             if terminated or truncated:
                 self.store_episode()
-                obs, _ = self.env.reset()
                 print(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
+                obs, _ = self.env.reset()
         progress_bar.close()
 
     def store_episode(self) -> None:
