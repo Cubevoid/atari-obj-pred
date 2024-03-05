@@ -1,6 +1,5 @@
 import random
 from ocatari.core import OCAtari
-from ocatari.vision.utils import mark_bb, make_darker
 from ocatari.utils import load_agent, parser
 
 GAME_NAME = "Pong"

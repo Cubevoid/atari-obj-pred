@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any
+from typing import List, Tuple
 import os
 import numpy as np
 import numpy.typing as npt
@@ -69,11 +69,17 @@ class DataCollector:
         Store the current episode to disk
         """
         file_name = f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}.gz"
+        episode_object_types = np.array([np.pad(objs_types, (0, 32 - len(objs_types)), constant_values="")
+                                         for objs_types in self.episode_object_types])
+        episode_object_bounding_boxes = np.array([np.pad(objs_bb, ((0, 32 - len(objs_bb)), (0,0)), constant_values=0)
+                                                  for objs_bb in self.episode_object_bounding_boxes])
+        episode_detected_masks = np.array([np.pad(masks, ((0, 32 - len(masks)), (0,0), (0,0)), constant_values=0)
+                                           for masks in self.episode_detected_masks])
         np.savez_compressed(file_name,
                             episode_frames=np.array(self.episode_frames),
-                            episode_object_types=np.array([np.pad(objs_types, (0, 32 - len(objs_types)), constant_values="") for objs_types in self.episode_object_types]),
-                            episode_object_bounding_boxes=np.array([np.pad(objs_bb, ((0, 32 - len(objs_bb)), (0,0)), constant_values=0) for objs_bb in self.episode_object_bounding_boxes]),
-                            episode_detected_masks=np.array([np.pad(masks, ((0, 32 - len(masks)), (0,0), (0,0)), constant_values=0) for masks in self.episode_detected_masks]),
+                            episode_object_types=episode_object_types,
+                            episode_object_bounding_boxes=episode_object_bounding_boxes,
+                            episode_detected_masks=episode_detected_masks,
                             episode_actions=np.array(self.episode_actions))
         self.curr_episode_id += 1
         episode_length = len(self.episode_frames)
@@ -105,4 +111,3 @@ class DataCollector:
                 data += int(file.split("-")[1].split(".")[0])
 
         return data
-
