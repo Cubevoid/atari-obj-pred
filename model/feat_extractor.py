@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 class FeatExtractor(torch.nn.Module):
@@ -10,10 +11,15 @@ class FeatExtractor(torch.nn.Module):
         self.num_frames = num_frames
         self.num_objects = num_objects
         self.input_size = input_size
-        self.conv1 = torch.nn.Conv2d(3 * num_frames, 64, 3, 1, 1)  # input_size x input_size
-        # input_size x input_size -> input_size/2 x input_size/2
-        self.maxpool = torch.nn.MaxPool2d(2, 2)
-        self.conv2 = torch.nn.Conv2d(64, 128, 3, 1, 1)
+        self.conv = nn.Sequential(
+            [
+                nn.Conv2d(3 * num_frames, 64, 3, 1, 1),  # input_size x input_size
+                nn.ReLU(),
+                torch.nn.MaxPool2d(2, 2),
+                torch.nn.Conv2d(64, 128, 3, 1, 1),  # input_size x input_size -> input_size/2 x input_size/2
+                nn.ReLU()
+            ]
+        )
         self.relu = torch.nn.ReLU()
 
     def roi_pool(self, x: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
@@ -42,9 +48,8 @@ class FeatExtractor(torch.nn.Module):
         Args:
             images: (B, num_frames, 3, input_size, input_size) input image tensor
         Returns:
-            (B, 128, 64, 64) feature vector
+            (B, num_objects, 128) feature vectors
         """
-        images = self.maxpool(self.relu(self.conv1(images.flatten(1, 2)/255.)))
-        images = self.relu(self.conv2(images))
+        images = self.conv(images)  # [input_size/2, input_size/2]
         images = self.roi_pool(images, rois)
         return images
