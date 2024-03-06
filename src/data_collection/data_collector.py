@@ -1,11 +1,11 @@
-from typing import List, Tuple
+from typing import List
 import os
 import numpy as np
 import numpy.typing as npt
 from ocatari.core import OCAtari
 from ocatari.utils import load_agent
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-import torch # type: ignore
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator # type: ignore
+import torch
 import tqdm
 import wandb
 
@@ -24,7 +24,7 @@ class DataCollector:
         self.collected_data = self.get_collected_data()
         self.episode_frames: List[npt.NDArray] = []
         self.episode_object_types : List[List[str]] = []
-        self.episode_object_bounding_boxes : List[List[Tuple[int, int, int, int]]]= []
+        self.episode_object_bounding_boxes : List[List[npt.NDArray]]= []
         self.episode_detected_masks : List[List[npt.NDArray]] = []
         self.episode_actions : List[int] = []
 
