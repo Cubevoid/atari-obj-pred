@@ -838,11 +838,11 @@
         },
         "nvidia-nvjitlink-cu12": {
             "hashes": [
-                "sha256:991905ffa2144cb603d8ca7962d75c35334ae82bf92820b6ba78157277da1ad2",
-                "sha256:c6428836d20fe7e327191c175791d38570e10762edc588fb46749217cd444c74"
+                "sha256:1b2e317e437433753530792f13eece58f0aec21a2b05903be7bffe58a606cbd1",
+                "sha256:64335a8088e2b9d196ae8665430bc6a2b7e6ef2eb877a9c735c804bd4ff6467c"
             ],
             "markers": "python_version >= '3'",
-            "version": "==12.4.99"
+            "version": "==12.3.101"
         },
         "nvidia-nvtx-cu12": {
             "hashes": [
