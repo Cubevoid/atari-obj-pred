@@ -2,8 +2,8 @@ import torch
 import torch as torch
 import torch.nn.functional as F
 import torch.nn as nn
-from model.feat_extractor import FeatExtractor
-from model.predictor import Predictor
+from src.model.feat_extractor import FeatExtractor
+from src.model.predictor import Predictor
 import wandb
 
 

@@ -2,7 +2,7 @@ import hydra
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from src.utils.logging_util import start_logging
+from utils.logging_util import start_logging
 
 @hydra.main(version_base=None, config_path='./configs/data_collection', config_name='config')
 def main(cfg: DictConfig) -> None:
