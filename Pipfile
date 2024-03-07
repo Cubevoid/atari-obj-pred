@@ -17,6 +17,7 @@ tqdm = "*"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "*"}
 mypy = "*"
 types-tqdm = "*"
+customtkinter = "*"
 
 [dev-packages]
 
