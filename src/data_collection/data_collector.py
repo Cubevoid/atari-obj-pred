@@ -20,6 +20,7 @@ class DataCollector:
         self.game = game
         if game == "SimpleTestData":
             self.env = SimpleTestData()
+            self.agent = None
         else:
             self.env = OCAtari(game, mode="revised", hud=True, obs_mode='dqn')
             self.agent = load_agent(f"./models/dqn_{game}.gz", self.env.action_space.n)
