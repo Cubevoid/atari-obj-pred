@@ -8,10 +8,10 @@ from src.data_collection.common import get_data_directory, get_id_from_episode_n
 class DataLoader:
     def __init__(self, game: str):
         self.dataset_path = get_data_directory(game)
-        self._load_data()
+        self.load_data()
         self.history_len = 4
 
-    def _load_data(self) -> None:
+    def load_data(self) -> None:
         """
         Load all the data from the disk
         """

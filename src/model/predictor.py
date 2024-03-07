@@ -1,13 +1,13 @@
-import wandb
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
+import wandb
 
 
 class Predictor(nn.Module):
     def __init__(self, input_size: int = 128, hidden_size: int = 32, output_size: int = 120, num_layers=2,
                  hidden_dim=120, nhead=2, time_steps=5):
-        super(Predictor, self).__init__()
+        super().__init__()
         self.time_steps = time_steps
         self.fc1 = nn.Linear(input_size, hidden_size)
         # self.fc2 = nn.Linear(hidden_size, output_size)

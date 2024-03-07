@@ -1,8 +1,7 @@
 from tqdm import tqdm
 import torch
-import torch as torch
-import torch.nn.functional as F
-import torch.nn as nn
+# import torch.nn.functional as F
+from torch import nn
 import wandb
 
 from src.data_collection.data_loader import DataLoader
@@ -27,7 +26,7 @@ def train(device: str = "cpu") -> None:
         list(feat_extract.parameters()) + list(predictor.parameters()), lr=1e-3
     )
     images, bboxes, masks, _ = data_loader.sample(batch_size, t_step)
-    target = bboxes.to(device)[:,:,:2]
+    target = bboxes[:,:,:2]
 
     for i in tqdm(range(1000)):
         features: torch.Tensor = feat_extract(images, masks)

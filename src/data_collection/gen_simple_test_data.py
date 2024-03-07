@@ -12,7 +12,7 @@ class FakeObject:
 
 class SimpleTestData(gymnasium.Env):
     def __init__(self):
-        super(SimpleTestData, self).__init__()
+        super().__init__()
         self.action_space = spaces.Discrete(1)
         self.observation_space = spaces.Box(
             low=0, high=255, shape=(128, 128, 3), dtype=np.uint8
