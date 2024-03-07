@@ -2,3 +2,4 @@ collector:
   _target_: src.data_collection.data_collector.DataCollector
   game: Pong
   num_samples: 2000
+  max_num_objects: 32
