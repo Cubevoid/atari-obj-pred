@@ -1,3 +1,4 @@
+import wandb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +10,8 @@ class Predictor(nn.Module):
         super(Predictor, self).__init__()
         self.time = time
         self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, output_size)
+        # self.fc2 = nn.Linear(hidden_size, output_size)
+        self.fc2 = nn.Linear(input_size, output_size)
         encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
         self.fc3 = nn.Linear(output_size, output_size)
@@ -20,15 +22,18 @@ class Predictor(nn.Module):
         Args:
             x: (B, num_objects, 128) feature vector
         Returns:
-            (B, time, num_objects, output_size) vector
+            (B, time, num_objects, 2) vector
         """
-        x = F.relu(self.fc1(x))
+        debug_stats = {'obj_std_mean': x.mean(-1).std()}
+        #x = F.relu(self.fc1(x))
         x = self.fc2(x)
         predictions = []
         for i in range(self.time):
             x = self.transformer_encoder(x, mask=mask, src_key_padding_mask=src_key_padding_mask)
+            debug_stats[f'pred_obj_std_mean_{i}'] = x.mean(-1).std()
             predictions.append(x)
         x = torch.stack(predictions, 1)
         x = F.relu(self.fc3(x))
         x = self.fc4(x)
+        wandb.log(debug_stats)
         return x
