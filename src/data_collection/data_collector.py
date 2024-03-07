@@ -107,9 +107,9 @@ class DataCollector:
         """
         Determine how much data we have already collected
         """
-        data = 0
+        count = 0
         for file in os.listdir(self.dataset_path):
             if file.endswith(".npz"):
-                data += get_length_from_episode_name(file)
+                count += get_length_from_episode_name(file)
 
-        return data
+        return count
