@@ -1,4 +1,10 @@
-# Requirements
+# Atari Object Prediction
+
+## Introduction
+
+See the [proposal](proposal.pdf)
+
+## Requirements
 
 - Install Pipenv
 - Install dependencies using `pipenv install`

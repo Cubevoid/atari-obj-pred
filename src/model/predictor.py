@@ -19,7 +19,7 @@ class Predictor(nn.Module):
         self.fc3 = nn.Linear(output_size, output_size)
         self.fc4 = nn.Linear(output_size, 2)
 
-    def forward(self, x, mask=None, src_key_padding_mask=None):
+    def forward(self, x: torch.Tensor, mask=None, src_key_padding_mask=None):
         """
         Args:
             x: (B, num_objects, 128) feature vector
