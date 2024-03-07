@@ -9,8 +9,14 @@ torch = "*"
 ocatari = "*"
 numpy = "*"
 pylint = "*"
+segment-anything = {git = "git+https://github.com/facebookresearch/segment-anything.git"}
+opencv-python-headless = "*"
+pyparsing = "*"
+hydra-core = "*"
+tqdm = "*"
 gymnasium = {extras = ["accept-rom-license", "atari"], version = "*"}
 mypy = "*"
+types-tqdm = "*"
 
 [dev-packages]
 
