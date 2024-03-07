@@ -9,14 +9,17 @@ import torch
 import tqdm
 import wandb
 
+from src.data_collection.common import get_data_directory, get_length_from_episode_name
+
 class DataCollector:
-    def __init__(self, game: str, num_samples: int) -> None:
+    def __init__(self, game: str, num_samples: int, max_num_objects: int) -> None:
         self.game = game
         self.env = OCAtari(game, mode="revised", hud=True, obs_mode='dqn')
         self.agent = load_agent(f"./models/dqn_{game}.gz", self.env.action_space.n)
         self.num_samples = num_samples
+        self.max_num_objects = max_num_objects
 
-        self.dataset_path = f"./data/{game}/"
+        self.dataset_path = get_data_directory(game)
         os.makedirs(self.dataset_path, exist_ok=True)
 
         self.curr_episode_id = 0
@@ -68,12 +71,12 @@ class DataCollector:
         """
         Store the current episode to disk
         """
-        file_name = f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}.gz"
-        episode_object_types = np.array([np.pad(objs_types, (0, 32 - len(objs_types)), constant_values="")
+        file_name = f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}"
+        episode_object_types = np.array([np.pad(objs_types, (0, self.max_num_objects - len(objs_types)), constant_values="")
                                          for objs_types in self.episode_object_types])
-        episode_object_bounding_boxes = np.array([np.pad(objs_bb, ((0, 32 - len(objs_bb)), (0,0)), constant_values=0)
+        episode_object_bounding_boxes = np.array([np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0,0)), constant_values=0)
                                                   for objs_bb in self.episode_object_bounding_boxes])
-        episode_detected_masks = np.array([np.pad(masks, ((0, 32 - len(masks)), (0,0), (0,0)), constant_values=0)
+        episode_detected_masks = np.array([np.pad(masks, ((0, self.max_num_objects - len(masks)), (0,0), (0,0)), constant_values=0)
                                            for masks in self.episode_detected_masks])
         np.savez_compressed(file_name,
                             episode_frames=np.array(self.episode_frames),
@@ -97,7 +100,7 @@ class DataCollector:
         Sets curr_episode_id to the next episode id
         """
         for file in os.listdir(self.dataset_path):
-            if file.endswith(".gz"):
+            if file.endswith(".npz"):
                 self.curr_episode_id = max(self.curr_episode_id, int(file.split("-")[0]) + 1)
 
     def get_collected_data(self) -> int:
@@ -106,8 +109,7 @@ class DataCollector:
         """
         data = 0
         for file in os.listdir(self.dataset_path):
-            if file.endswith(".gz"):
-                # all files have the format {id)-{length}.gz
-                data += int(file.split("-")[1].split(".")[0])
+            if file.endswith(".npz"):
+                data += get_length_from_episode_name(file)
 
         return data
