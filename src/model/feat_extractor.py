@@ -73,8 +73,9 @@ class FeatExtractor(torch.nn.Module):
         Args:
             images: (B, num_frames, 3, input_size, input_size) input image tensor
         Returns:
-            (B, num_objects, 128) feature vectors
+            (B, num_objects, 128) feature vector
         """
         images = self.conv(images)  # [input_size/2, input_size/2]
         images = self.roi_pool(images, rois)
+        images = self.position_embed(images)
         return images

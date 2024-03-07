@@ -2,17 +2,11 @@
 
 ## Introduction
 
-<<<<<<< HEAD
 See [proposal.pdf](proposal.pdf) for the full project proposal.
 
 ## Requirements
 
 **Note:** Windows is not supported. Please use Linux.
-=======
-See the [proposal](proposal.pdf)
-
-## Requirements
->>>>>>> 45384f6 (Move files around)
 
 - Install Pipenv
 - Install dependencies using `pipenv install`

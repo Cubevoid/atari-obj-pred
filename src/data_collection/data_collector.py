@@ -9,8 +9,11 @@ import torch
 import tqdm
 import wandb
 from src.data_collection.gen_simple_test_data import SimpleTestData
+<<<<<<< HEAD
 
 from src.data_collection.common import get_data_directory, get_length_from_episode_name
+=======
+>>>>>>> ce9c2e4fab74e462b85fe9ea1dcc7b732ae8c672
 
 class DataCollector:
     def __init__(self, game: str, num_samples: int, max_num_objects: int) -> None:
