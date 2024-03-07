@@ -35,10 +35,15 @@ class FeatExtractor(torch.nn.Module):
         self.num_frames = num_frames
         self.num_objects = num_objects
         self.input_size = input_size
-        self.conv1 = torch.nn.Conv2d(3 * num_frames, 64, 3, 1, 1)  # input_size x input_size
-        # input_size x input_size -> input_size/2 x input_size/2
-        self.maxpool = torch.nn.MaxPool2d(2, 2)
-        self.conv2 = torch.nn.Conv2d(64, 128, 3, 1, 1)
+        self.conv = nn.Sequential(
+            [
+                nn.Conv2d(3 * num_frames, 64, 3, 1, 1),  # input_size x input_size
+                nn.ReLU(),
+                torch.nn.MaxPool2d(2, 2),
+                torch.nn.Conv2d(64, 128, 3, 1, 1),  # input_size x input_size -> input_size/2 x input_size/2
+                nn.ReLU()
+            ]
+        )
         self.relu = torch.nn.ReLU()
         self.position_embed = SoftPositionEmbed(128, (64, 64))
 
@@ -70,8 +75,7 @@ class FeatExtractor(torch.nn.Module):
         Returns:
             (B, num_objects, 128) feature vector
         """
-        images = self.maxpool(self.relu(self.conv1(images.flatten(1, 2)/255.)))
-        images = self.relu(self.conv2(images))
-        images = self.position_embed(images)
+        images = self.conv(images)  # [input_size/2, input_size/2]
         images = self.roi_pool(images, rois)
+        images = self.position_embed(images)
         return images
