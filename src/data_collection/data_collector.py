@@ -20,7 +20,7 @@ class DataCollector:
             self.agent = None
         else:
             self.env = OCAtari(game, mode="revised", hud=True, obs_mode='dqn')
-            self.agent = load_agent(f"./models/dqn_{game}.gz", self.env.action_space.n)
+            self.agent = load_agent(f"./models/dqn_{game}.gz", self.env.action_space.n)  # type: ignore
         self.num_samples = num_samples
         self.max_num_objects = max_num_objects
 
@@ -51,7 +51,7 @@ class DataCollector:
         counter = 0
         while self.collected_data < self.num_samples:
             counter += 1
-            action = self.agent.draw_action(self.env.dqn_obs) if self.agent else self.env.action_space.sample()
+            action = self.agent.draw_action(self.env.dqn_obs) if self.agent else self.env.action_space.sample()  # type: ignore
             obs, _, terminated, truncated, _ = self.env.step(action)
             self.episode_frames.append(obs)
             self.episode_object_types.append([])

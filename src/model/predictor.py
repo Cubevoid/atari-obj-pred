@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -5,13 +6,11 @@ import wandb
 
 
 class Predictor(nn.Module):
-    def __init__(self, input_size: int = 128, hidden_size: int = 32, output_size: int = 120, num_layers=2,
-                 hidden_dim=120, nhead=2, time_steps=5):
+    def __init__(self, input_size: int = 128, hidden_size: int = 32, output_size: int = 120, num_layers: int = 2,
+                 hidden_dim: int = 120, nhead: int = 2, time_steps: int = 5) -> None:
         super().__init__()
         self.time_steps = time_steps
         self.fc1 = nn.Linear(input_size, hidden_size)
-        # self.fc2 = nn.Linear(hidden_size, output_size)
-        self.fc2 = nn.Linear(input_size, output_size)
         encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim)
         self.fc2 = nn.Linear(hidden_size, output_size)
         encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim, batch_first=True)
@@ -19,7 +18,7 @@ class Predictor(nn.Module):
         self.fc3 = nn.Linear(output_size, output_size)
         self.fc4 = nn.Linear(output_size, 2)
 
-    def forward(self, x: torch.Tensor, mask=None, src_key_padding_mask=None):
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Args:
             x: (B, num_objects, 128) feature vector
