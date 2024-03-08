@@ -37,7 +37,7 @@ def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.
     print(target)
     print(output)
 
-def main():
+def main() -> None:
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda")
