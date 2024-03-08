@@ -9,6 +9,7 @@ class DataLoader:
     def __init__(self, game: str):
         self.dataset_path = get_data_directory(game)
         self.load_data()
+        self.history_len = 4
 
     def load_data(self) -> None:
         """
@@ -30,9 +31,12 @@ class DataLoader:
         self.episode_data = episode_data
         self.episode_weights = np.array(episode_lengths) / sum(episode_lengths)
 
-    def sample(self, batch_size: int) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
+    def sample(self, batch_size: int, time_steps: int) -> Tuple[npt.NDArray, npt.NDArray, npt.NDArray, npt.NDArray]:
         """
         Sample a batch of states from episodes
+        Args:
+        batch_size: Number of states to sample
+        time_steps: Number of time steps to sample for bboxes
         Returns:
         Tuple containing stacked states [batch_size, stacked_frames=4, channels=3, H=128, W=128], Object bounding boxes [batch_size, num_objects, 4], 
         Masks [batch_size, H=128, W=128], Actions [batch_size, 1]
@@ -44,9 +48,9 @@ class DataLoader:
         actions = []
         for episode in episodes:
             frames, _, object_bounding_boxes, detected_masks, episode_actions = self.episode_data[episode]
-            start = np.random.randint(0, len(frames) - 4)
-            states.append(frames[start:start+4])
-            object_bounding_boxes_list.append(object_bounding_boxes[start:start+4])
-            masks.append(detected_masks[start+4])
-            actions.append(episode_actions[start+4])
-        return np.array(states), np.array(object_bounding_boxes), np.array(masks), np.array(actions)
+            start = np.random.randint(0, len(frames) - self.history_len)
+            states.append(frames[start:start+self.history_len])
+            object_bounding_boxes_list.append(object_bounding_boxes[start+self.history_len:start+self.history_len+time_steps])
+            masks.append(detected_masks[start+self.history_len])
+            actions.append(episode_actions[start+self.history_len])
+        return np.array(states), np.array(object_bounding_boxes_list), np.array(masks), np.array(actions)
