@@ -1,65 +1,109 @@
+import tkinter
 from typing import Any
-import customtkinter as ctk  # type: ignore
+import customtkinter as ctk
+import cv2  # type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+from src.data_collection.data_loader import DataLoader
+
+# generate a list of 32 distinct colors for matplotlib
+color_map = [plt.cm.tab20(i) for i in np.linspace(0, 1, 32)]
+
+
 class Visualizer:
-    def __init__(self) -> None:
+    def __init__(self, game: str) -> None:
+        self.data_loader = DataLoader(game)
+        self.fig = None
+        self.canvas = None
+        
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
-        self.root.geometry("1200x400+200x200")
-        self.root.title("Dynamic Scatterplot")
+        self.root.geometry("1200x800+200x200")
+        self.root.title("Data Visualizer")
         self.root.update()
         self.frame = ctk.CTkFrame(master=self.root,
-                                  height= self.root.winfo_height()*0.95,
+                                  height= self.root.winfo_height()*0.66,
                                   width = self.root.winfo_width()*0.66,
                                   fg_color="darkblue")
         self.frame.place(relx=0.33, rely=0.025)
-        self.input =  ctk.CTkEntry(master=self.root,
-                                   placeholder_text=100,
-                                   justify='center',
-                                   width=300,
-                                   height=50,
-                                   fg_color="darkblue")
-        self.input.insert(0,100)
-        self.input.place(relx=0.025,rely=0.5)
-        self.slider = ctk.CTkSlider(master=self.root,
+        num_episodes = len(self.data_loader.episode_data)
+        self.episode_slider = ctk.CTkSlider(master=self.root,
                                     width=300,
                                     height=20,
                                     from_=1,
-                                    to=1000,
-                                    number_of_steps=999,
+                                    to=num_episodes,
+                                    number_of_steps=num_episodes-1,
                                     command=self.update_surface)
-        self.slider.place(relx= 0.025,rely=0.75)
-        self.button = ctk.CTkButton(master = self.root,
-                               text="Update Graph",
-                               width=300,
-                               height=50,
-                               command=self.update_window)
-        self.button.place(relx=0.025,rely=0.25)
-        self.x, self.y, self.s, self.c = 0, 0, 0, 0
+        self.episode_slider.place(relx= 0.025,rely=0.5)
+        self.data_slider = ctk.CTkSlider(master=self.root,
+                                    width=300,
+                                    height=20,
+                                    from_=1,
+                                    to=num_episodes,
+                                    number_of_steps=num_episodes-1,
+                                    command=self.update_surface)
+
+        self.radio_var = tkinter.IntVar(value=1)
+        radiobutton_1 = ctk.CTkRadioButton(self.root, text="Image",
+                                                    command=self.set_display_mode, variable= self.radio_var, value=1)
+        radiobutton_1.place(relx= 0.025,rely=0.1)
+        radiobutton_2 = ctk.CTkRadioButton(self.root, text="SAM Masks",
+                                             command=self.set_display_mode, variable= self.radio_var, value=2)
+        radiobutton_2.place(relx= 0.025,rely=0.15)
+        radiobutton_3 = ctk.CTkRadioButton(self.root, text="SAM Masks + Image",
+                                             command=self.set_display_mode, variable= self.radio_var, value=3)
+        radiobutton_3.place(relx= 0.025,rely=0.2)                                   
+        radiobutton_4 = ctk.CTkRadioButton(self.root, text="Groundtruth",
+                                             command=self.set_display_mode, variable= self.radio_var, value=4)
+        radiobutton_4.place(relx= 0.025,rely=0.25)    
+        radiobutton_5 = ctk.CTkRadioButton(self.root, text="SAM Mask + Groundtruth",
+                                             command=self.set_display_mode, variable= self.radio_var, value=5)
+        radiobutton_5.place(relx= 0.025,rely=0.3)  
+                                    
+        self.data_slider.place(relx= 0.025,rely=0.75)
+        self.update_data_slider(None)
+        # add event handler to episode slider to update max number of data slider
+        self.episode_slider.bind("<ButtonRelease-1>", self.update_data_slider)
         self.root.mainloop()
 
-    def update_window(self) -> None:
-        fig, ax = plt.subplots()
-        fig.set_size_inches(11,5.3)
-        self.x, self.y, self.s, self.c = np.random.rand(4,int(self.input.get()))
-        ax.scatter(self.x, self.y, self.s*self.slider.get(), self.c)
-        ax.axis("off")
-        fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
-        canvas = FigureCanvasTkAgg(fig,master=self.root)
-        canvas.draw()
-        canvas.get_tk_widget().place(relx=0.33, rely=0.025)
-        self.root.update()
+    def set_display_mode(self) -> None:
+        self.update_surface(None)
+        
+    def update_data_slider(self, _: Any) -> None:
+        episode = self.data_loader.episode_data[int(self.episode_slider.get()) - 1][0]
+        self.data_slider.configure(number_of_steps=len(episode)-1, to=len(episode))
 
     def update_surface(self, _: Any) -> None:
-        fig, ax = plt.subplots()
-        fig.set_size_inches(11,5.3)
-        ax.scatter(self.x, self.y, self.s*self.slider.get(), self.c)
-        ax.axis("off")
-        fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
-        canvas = FigureCanvasTkAgg(fig,master=self.root)
-        canvas.draw()
-        canvas.get_tk_widget().place(relx=0.33, rely=0.025)
+        if self.fig is None:
+            self.fig, self.ax = plt.subplots()
+            self.fig.set_size_inches(6,6)
+        episode_idx = int(self.data_slider.get()) - 1
+        frame, types, boxes, masks, actions = self.data_loader.episode_data[int(self.episode_slider.get()) - 1]
+        frame, types, boxes, masks, actions = frame[episode_idx], types[episode_idx], boxes[episode_idx], masks[episode_idx], actions[episode_idx]
+        frame = frame.astype(np.float32) / 255.
+        mode = self.radio_var.get()
+        if mode == 2 or mode == 3 or mode == 5:
+            if mode == 2 or mode == 5:
+                frame = np.zeros_like(frame)
+            for i, mask in enumerate(masks):
+                img = np.zeros_like(frame)
+                img[mask] = color_map[i][:3]
+                frame += img * 0.5
+        frame = frame.clip(0, 1)
+        if mode == 4 or mode == 5:
+            for i, box in enumerate(boxes):
+                x, y, w, h = box
+                if x != 0 or y != 0:
+                    frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)
+        self.ax.imshow(frame)
+        self.ax.axis("off")
+        self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
+        if self.canvas is None:
+            self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
+            self.canvas.draw()
+            self.canvas.get_tk_widget().place(relx=0.33, rely=0.025)
+        else:
+            self.canvas.draw()
         self.root.update()
