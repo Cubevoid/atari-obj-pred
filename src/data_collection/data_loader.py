@@ -24,7 +24,7 @@ class DataLoader:
             episode_lengths.append(get_length_from_episode_name(episode))
             episode_id = get_id_from_episode_name(episode)
             assert episode_id not in episode_data, f"Episode {id} already exists in the dataset"
-            episode_data[id] = (data["episode_frames"], data["episode_object_types"], data["episode_object_bounding_boxes"],
+            episode_data[episode_id] = (data["episode_frames"], data["episode_object_types"], data["episode_object_bounding_boxes"],
                                 data["episode_detected_masks"], data["episode_actions"])
             episode_counts += 1
 
