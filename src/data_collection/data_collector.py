@@ -12,8 +12,6 @@ from src.data_collection.gen_simple_test_data import SimpleTestData
 
 from src.data_collection.common import get_data_directory, get_length_from_episode_name
 
-from src.data_collection.common import get_data_directory, get_length_from_episode_name
-
 class DataCollector:
     def __init__(self, game: str, num_samples: int, max_num_objects: int) -> None:
         self.game = game
