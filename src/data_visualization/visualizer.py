@@ -1,5 +1,5 @@
-import tkinter
 from typing import Any
+import tkinter
 import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np

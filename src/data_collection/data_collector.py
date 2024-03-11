@@ -8,14 +8,21 @@ from segment_anything import sam_model_registry, SamAutomaticMaskGenerator # typ
 import torch
 import tqdm
 import wandb
+from src.data_collection.gen_simple_test_data import SimpleTestData
+
+from src.data_collection.common import get_data_directory, get_length_from_episode_name
 
 from src.data_collection.common import get_data_directory, get_length_from_episode_name
 
 class DataCollector:
     def __init__(self, game: str, num_samples: int, max_num_objects: int) -> None:
         self.game = game
-        self.env = OCAtari(game, mode="revised", hud=True, obs_mode='dqn')
-        self.agent = load_agent(f"./models/dqn_{game}.gz", self.env.action_space.n)
+        if game == "SimpleTestData":
+            self.env = SimpleTestData()
+            self.agent = None
+        else:
+            self.env = OCAtari(game, mode="revised", hud=True, obs_mode='dqn')
+            self.agent = load_agent(f"./models/dqn_{game}.gz", self.env.action_space.n)  # type: ignore
         self.num_samples = num_samples
         self.max_num_objects = max_num_objects
 
@@ -46,7 +53,7 @@ class DataCollector:
         counter = 0
         while self.collected_data < self.num_samples:
             counter += 1
-            action = self.agent.draw_action(self.env.dqn_obs)
+            action = self.agent.draw_action(self.env.dqn_obs) if self.agent else self.env.action_space.sample()  # type: ignore
             obs, _, terminated, truncated, _ = self.env.step(action)
             self.episode_frames.append(obs)
             self.episode_object_types.append([])
