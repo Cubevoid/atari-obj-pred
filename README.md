@@ -20,3 +20,9 @@ You can test OCAtari on the Assault game by running:
 ## Setup
 
 Run `setup.sh` to download the model weights for SAM
+
+## Running the code
+
+The main executables are located under `src/scripts/`.
+Use the following command to run the code:
+`python -m src.scripts.<script_name>` (without the `.py` extension)
