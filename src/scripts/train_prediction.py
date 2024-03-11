@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import torch
+
 # import torch.nn.functional as F
 from torch import nn
 import wandb
@@ -9,7 +10,14 @@ from src.model.feat_extractor import FeatExtractor
 from src.model.predictor import Predictor
 
 
-def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.MSELoss(), game: str = "Pong", batch_size: int = 1, t_steps: int = 1, num_obj: int = 32) -> None:
+def train(
+    device: torch.device = torch.device("cpu"),
+    criterion: nn.Module = nn.MSELoss(),
+    game: str = "Pong",
+    batch_size: int = 1,
+    t_steps: int = 1,
+    num_obj: int = 32,
+) -> None:
     wandb.init(project="oc-data-collection", entity="atari-obj-pred", name="debug")
     print(f"Using device: {device}")
     data_loader = DataLoader(game)
@@ -23,7 +31,7 @@ def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.
         list(feat_extract.parameters()) + list(predictor.parameters()), lr=1e-3
     )
     images, bboxes, masks, _ = data_loader.sample(batch_size, t_steps)
-    target = bboxes[:,:,:2]
+    target = bboxes[:, :, :2]
 
     for _ in tqdm(range(1000)):
         features: torch.Tensor = feat_extract(images, masks)
@@ -38,11 +46,13 @@ def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.
     print(target)
     print(output)
 
+
 def main() -> None:
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda")
     train(device, game="SimpleTestData")
+
 
 if __name__ == "__main__":
     main()
