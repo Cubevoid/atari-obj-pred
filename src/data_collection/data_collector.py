@@ -1,19 +1,21 @@
 from typing import List
 import os
+import cv2
 import numpy as np
 import numpy.typing as npt
 from ocatari.core import OCAtari
 from ocatari.utils import load_agent
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator # type: ignore
+from fastsam import FastSAM, FastSAMPrompt
 import torch
+from torch.nn import functional as F
 import tqdm
 import wandb
-from src.data_collection.gen_simple_test_data import SimpleTestData
 
+from src.data_collection.gen_simple_test_data import SimpleTestData
 from src.data_collection.common import get_data_directory, get_length_from_episode_name
 
 class DataCollector:
-    def __init__(self, game: str, num_samples: int, max_num_objects: int) -> None:
+    def __init__(self, game: str, num_samples: int, max_num_objects: int, small_sam: bool = False) -> None:
         self.game = game
         if game == "SimpleTestData":
             self.env = SimpleTestData()
@@ -37,9 +39,19 @@ class DataCollector:
         self.episode_actions : List[int] = []
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to(self.device)
-        sam = torch.compile(sam)
-        self.generator = SamAutomaticMaskGenerator(sam)
+        weights = "FastSAM-s.pt" if small_sam else "FastSAM-x.pt"
+        self.sam = FastSAM(f"./models/{weights}")
+        self.sam.to(self.device)
+
+    def resize_masks(self, masks: npt.NDArray, size=(128, 128)) -> torch.tensor:
+        """
+        Resize the masks to 128x128
+        Args:
+            masks: (C, H, W) tensor
+        Returns:
+            (B, C, 128, 128) tensor
+        """
+        return F.interpolate(masks.unsqueeze(1), size=size, mode='nearest').squeeze(1)
 
     def collect_data(self) -> None:
         """
@@ -57,10 +69,14 @@ class DataCollector:
             self.episode_object_types.append([])
             self.episode_object_bounding_boxes.append([])
             self.episode_actions.append(action)
+            orig_size = obs.shape[:2]
             with torch.no_grad():
                 with torch.autocast(device_type=self.device, dtype=torch.float16):
-                    masks = self.generator.generate(obs)
-            self.episode_detected_masks.append([mask["segmentation"] for mask in masks])
+                    results = self.sam(obs, retina_masks=True, imgsz=max(orig_size), conf=0.4, iou=0.9, verbose=False)
+                    masks = [
+                        self.resize_masks(res.masks.data, orig_size).bool().cpu().numpy() for res in results
+                    ]  # a B-len list of [N, H, W]
+            self.episode_detected_masks.extend(masks)
             wandb.log({"data_collected": counter})
             for obj in self.env.objects:
                 self.episode_object_types[-1].append(obj.category)
@@ -71,6 +87,17 @@ class DataCollector:
                 print(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
         progress_bar.close()
+
+        # filter and sort
+        padded_masks = np.zeros((self.collected_data, self.max_num_objects, orig_size[0], orig_size[1]), dtype=bool)
+        for i, img_masks in enumerate(masks):
+            indiv_masks = sorted([mask for mask in img_masks if mask.sum() > 0 and mask.sum() < orig_size[0] * orig_size[1] / 2], key=lambda m: m.sum(), reverse=True)[:self.num_slots]
+            c = 0
+            for mask in indiv_masks:
+                if c == 0 or max([(np.bitwise_and(mask, m)).sum() for m in padded_masks[i,:c]]) / mask.sum() < 0.8:  # ensure we dont have duplicate masks
+                    padded_masks[i, c] = mask
+                    c += 1
+        self.episode_detected_masks = padded_masks
 
     def store_episode(self) -> None:
         """
@@ -116,5 +143,5 @@ class DataCollector:
         for file in os.listdir(self.dataset_path):
             if file.endswith(".npz"):
                 count += get_length_from_episode_name(file)
-
+        return 0
         return count
