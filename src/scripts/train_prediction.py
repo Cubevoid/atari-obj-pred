@@ -9,9 +9,10 @@ from src.model.feat_extractor import FeatExtractor
 from src.model.predictor import Predictor
 
 
-def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.MSELoss(), batch_size: int = 1, t_steps: int = 1, num_obj: int = 32) -> None:
+def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.MSELoss(), game: str = "Pong", batch_size: int = 1, t_steps: int = 1, num_obj: int = 32) -> None:
     wandb.init(project="oc-data-collection", entity="atari-obj-pred", name="debug")
-    data_loader = DataLoader("Pong")
+    print(f"Using device: {device}")
+    data_loader = DataLoader(game)
     wandb.log({"batch_size": batch_size})
     feat_extract = FeatExtractor(num_objects=num_obj).to(device)
     # wandb.watch(feat_extract, log="all", log_freq=1, idx=1)
@@ -41,7 +42,7 @@ def main() -> None:
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    train(device)
+    train(device, game="SimpleTestData")
 
 if __name__ == "__main__":
     main()
