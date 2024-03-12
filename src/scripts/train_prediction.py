@@ -1,3 +1,5 @@
+import os
+import time
 import typing
 from typing import Any, Dict
 from omegaconf import DictConfig, OmegaConf
@@ -5,6 +7,7 @@ from tqdm import tqdm
 import torch
 from torch import nn
 import hydra
+from hydra.utils import to_absolute_path
 import wandb
 
 from src.data_collection.data_loader import DataLoader
@@ -46,7 +49,6 @@ def train(config: DictConfig) -> None:
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         diff = torch.pow(output - target, 2)
-        diff_by_time = diff.mean(-1).mean(-1).mean(0)
         optimizer.step()
         tqdm.write(f"loss={loss.item()}, output_mean={output.mean().item()}, std={output.std().item()}")
         tqdm.write(f"target_mean={target.mean().item()} std={target.std().item()}")
@@ -59,6 +61,11 @@ def train(config: DictConfig) -> None:
         wandb.log(error_dict)
         optimizer.zero_grad()
 
+    # save trained model to disk
+    unix_time = int(time.time())
+    os.makedirs(to_absolute_path(f"./models/trained/{game}"), exist_ok=True)
+    torch.save(feature_extract.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_feat_extract.pth"))
+    torch.save(predictor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_predictor.pth"))
 
 if __name__ == "__main__":
     train()  # pylint: disable=no-value-for-parameter
