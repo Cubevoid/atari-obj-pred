@@ -1,4 +1,4 @@
-batch_size: 32
+batch_size: 1
 time_steps: 5
 num_objects: 32
 name: debug-training

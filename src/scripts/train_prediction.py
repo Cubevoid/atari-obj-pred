@@ -39,7 +39,7 @@ def train(config: DictConfig) -> None:
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
 
-    for _ in tqdm(range(1000)):
+    for i in tqdm(range(1000)):
         images, bboxes, masks, _ = data_loader.sample(batch_size, time_steps)
         images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
         target = bboxes[:,:,:,:2]  # [B, T, O, 2]
@@ -58,6 +58,14 @@ def train(config: DictConfig) -> None:
         }
         for t in range(time_steps):
             error_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
+        if i % 50 == 0:
+            notzero = torch.nonzero(target)
+            l1sum = 0
+            total = 0
+            for index in notzero:
+                l1sum += abs(target[index[0]][index[1]][index[2]][index[3]]-output[index[0]][index[1]][index[2]][index[3]])
+                total += 1
+            print(l1sum/total)
         wandb.log(error_dict)
         optimizer.zero_grad()
 
