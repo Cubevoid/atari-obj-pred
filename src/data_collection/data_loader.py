@@ -75,5 +75,6 @@ class DataLoader:
         states_tensor  = states_tensor .reshape((-1, 12, 128, 128))
 
         masks_tensor = torch.from_numpy(np.array(masks))[:, :self.num_obj]
+        masks_tensor = F.one_hot(masks_tensor, num_classes=self.num_obj).float()[1:]  # get rid of background
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))

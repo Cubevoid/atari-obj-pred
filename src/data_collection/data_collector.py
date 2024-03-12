@@ -138,7 +138,7 @@ class DataCollector:
         episode_object_bounding_boxes = np.array(
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
-        
+
         np.savez_compressed(
             file_name,
             episode_frames=np.array(self.episode_frames),
