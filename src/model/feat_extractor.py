@@ -67,10 +67,12 @@ class FeatureExtractor(torch.nn.Module):
     def forward(self, images: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            images: (B, num_frames, 3, input_size, input_size) input image tensor
+            images: (B, num_frames*3, input_size, input_size) input image tensor
         Returns:
             (B, num_objects, 128) feature vector
         """
+        assert len(images.shape) == 4, f"Expected 4D tensor, got {images.shape}"
+        assert images.shape[-1] == images.shape[-2] == self.input_size, f"Expected input size {self.input_size}, got {images.shape}"
         images = self.conv(images)  # [input_size/2, input_size/2]
         images = self.position_embed(images)
         objects = self.roi_pool(images, rois)

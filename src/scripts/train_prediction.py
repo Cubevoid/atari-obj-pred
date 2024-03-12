@@ -15,10 +15,12 @@ from src.model.predictor import Predictor
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
 def train(config: DictConfig, batch_size: int = 4, t_steps: int = 1, num_obj: int = 4, name: str = 'debug') -> None:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
 
     data_loader = DataLoader("SimpleTestDataSmall", num_obj)
 
     feature_extract = FeatureExtractor(num_objects=num_obj).to(device)
+    feat_extract = FeatExtractor(num_objects=num_obj).to(device)
     predictor = Predictor(num_layers=1, time_steps=t_steps).to(device)
 
     wandb.init(project="oc-data-collection", entity="atari-obj-pred", name=name, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(config)))
