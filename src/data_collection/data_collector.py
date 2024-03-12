@@ -75,11 +75,14 @@ class DataCollector:
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
                 results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
-            masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
-            masks = self.filter_and_sort_masks(orig_size, masks)
-            masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
-            # uint8 array (H, W) of mask ids, assuming they do not overlap
-            masks = masks.argmax(axis=0).astype(np.uint8)
+            if results is None:
+                masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
+            else:
+                masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
+                masks = self.filter_and_sort_masks(orig_size, masks)
+                masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
+                # uint8 array (H, W) of mask ids, assuming they do not overlap
+                masks = masks.argmax(axis=0).astype(np.uint8)
             self.episode_detected_masks.append(masks)
 
             wandb.log({"data_collected": counter})
@@ -135,12 +138,13 @@ class DataCollector:
         episode_object_bounding_boxes = np.array(
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
+        
         np.savez_compressed(
             file_name,
             episode_frames=np.array(self.episode_frames),
             episode_object_types=episode_object_types,
             episode_object_bounding_boxes=episode_object_bounding_boxes,
-            episode_detected_masks=self.episode_detected_masks,
+            episode_detected_masks=np.array(self.episode_detected_masks),
             episode_actions=np.array(self.episode_actions),
         )
         self.curr_episode_id += 1

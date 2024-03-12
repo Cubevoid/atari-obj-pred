@@ -76,4 +76,4 @@ class DataLoader:
 
         masks_tensor = torch.from_numpy(np.array(masks))[:, :self.num_obj]
 
-        return states_tensor , object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
+        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
