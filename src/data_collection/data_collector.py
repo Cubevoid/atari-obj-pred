@@ -35,7 +35,7 @@ class DataCollector:
         self.episode_frames: List[npt.NDArray] = []
         self.episode_object_types: List[List[str]] = []
         self.episode_object_bounding_boxes: List[List[npt.NDArray]] = []
-        self.episode_detected_masks: List[List[npt.NDArray]] = []
+        self.episode_detected_masks: List[npt.NDArray] = []  # uint8 list of (H, W) masks
         self.episode_actions: List[int] = []
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -68,9 +68,6 @@ class DataCollector:
             action = self.agent.draw_action(self.env.dqn_obs) if self.agent else self.env.action_space.sample()  # type: ignore
             obs, _, terminated, truncated, _ = self.env.step(action)
             self.episode_frames.append(obs)
-            # Ground truth
-            self.episode_object_types.append([])
-            self.episode_object_bounding_boxes.append([])
             self.episode_actions.append(action)
             # Pad the image to be a multiple of 32
             padded_size = (orig_size[0] + 31) // 32 * 32, (orig_size[1] + 31) // 32 * 32
@@ -78,12 +75,18 @@ class DataCollector:
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
                 results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
-                # a B-len list of [N, H, W]
-                masks = [self.resize_masks(res.masks.data, orig_size).bool().cpu().numpy() for res in results]
-            self.episode_detected_masks.extend(masks)
+            masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
+            masks = self.filter_and_sort_masks(orig_size, masks)
+            masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
+            # uint8 array (H, W) of mask ids, assuming they do not overlap
+            masks = masks.argmax(axis=0).astype(np.uint8)
+            self.episode_detected_masks.append(masks)
 
             wandb.log({"data_collected": counter})
 
+            # Ground truth
+            self.episode_object_types.append([])
+            self.episode_object_bounding_boxes.append([])
             for obj in self.env.objects:
                 self.episode_object_types[-1].append(obj.category)
                 self.episode_object_bounding_boxes[-1].append(np.array(obj.xywh))
@@ -95,38 +98,31 @@ class DataCollector:
                 obs, _ = self.env.reset()
         progress_bar.close()
 
-        # filter and sort
-        self.episode_detected_masks = self.filter_and_sort_masks(orig_size, self.episode_detected_masks)
-
-    def filter_and_sort_masks(self, orig_size: Tuple[int, ...], masks: List[List[npt.NDArray]]) -> List[List[npt.NDArray]]:
+    def filter_and_sort_masks(self, orig_size: Tuple[int, ...], masks: npt.NDArray) -> npt.NDArray:
         """
         Filter masks for duplicates and sort them by size.
         Args:
             orig_size: (H, W) tuple, the original size of the image
-            masks: (B, N, H, W) tensor
+            masks: (N, H, W) binary masks
         Returns:
-            List[List[npt.NDArray]] of HxW binary masks
+            List[npt.NDArray] of HxW binary masks
         """
         padded_masks = np.zeros(
-            (self.collected_data, self.max_num_objects, orig_size[0], orig_size[1]),
+            (masks.shape[0], orig_size[0], orig_size[1]),
             dtype=bool,
+        )  # (num_objects, H, W)
+        indiv_masks = sorted(
+            [masks[i,:orig_size[0],:orig_size[1]] for i in range(masks.shape[0]) if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2],
+            key=lambda m: m.sum(),
+            reverse=True,
         )
-        for i, img_masks in tqdm(enumerate(masks), desc="Filtering and sorting masks"):
-            indiv_masks = sorted(
-                [mask for mask in img_masks if mask.sum() > 0 and mask.sum() < orig_size[0] * orig_size[1] / 2],
-                key=lambda m: m.sum(),
-                reverse=True,
-            )[: self.max_num_objects]
-            c = 0
-            for mask in indiv_masks:
-                # ensure we dont have duplicate masks
-                if c == 0 or max((np.bitwise_and(mask, m)).sum() for m in padded_masks[i, :c]) / mask.sum() < 0.8:
-                    padded_masks[i, c] = mask
-                    c += 1
-        sorted_masks: List[List[npt.NDArray]] = []
-        for i in range(self.collected_data):
-            sorted_masks.append(padded_masks[i,:].tolist())
-        return sorted_masks
+        c = 0
+        for mask in indiv_masks:
+            # ensure we dont have duplicate masks
+            if c == 0 or max((np.bitwise_and(mask, m)).sum() for m in padded_masks[:c]) / mask.sum() < 0.8:
+                padded_masks[c] = mask
+                c += 1
+        return padded_masks
 
     def store_episode(self) -> None:
         """
@@ -137,17 +133,14 @@ class DataCollector:
             [np.pad(objs_types, (0, self.max_num_objects - len(objs_types)), constant_values="") for objs_types in self.episode_object_types]
         )
         episode_object_bounding_boxes = np.array(
-            [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0)), constant_values=0) for objs_bb in self.episode_object_bounding_boxes]
-        )
-        episode_detected_masks = np.array(
-            [np.pad(masks, ((0, self.max_num_objects - len(masks)), (0, 0), (0, 0)), constant_values=0) for masks in self.episode_detected_masks]
+            [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
         np.savez_compressed(
             file_name,
             episode_frames=np.array(self.episode_frames),
             episode_object_types=episode_object_types,
             episode_object_bounding_boxes=episode_object_bounding_boxes,
-            episode_detected_masks=episode_detected_masks,
+            episode_detected_masks=self.episode_detected_masks,
             episode_actions=np.array(self.episode_actions),
         )
         self.curr_episode_id += 1
