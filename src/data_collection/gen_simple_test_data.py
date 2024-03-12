@@ -47,7 +47,7 @@ class SimpleTestData(gymnasium.Env):
         image_height = 128
 
         # Set the number of frames in the sequence
-        num_frames = 10
+        num_frames = 100
 
         # Create an empty list to store the frames
         frames = []
