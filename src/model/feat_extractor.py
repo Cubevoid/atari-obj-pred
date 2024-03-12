@@ -26,7 +26,7 @@ class SoftPositionEmbed(nn.Module):
         return inputs + emb_proj
 
 
-class FeatExtractor(torch.nn.Module):
+class FeatureExtractor(torch.nn.Module):
     """
     Performs CNN-based feature extraction and ROI pooling.
     """
