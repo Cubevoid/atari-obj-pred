@@ -9,7 +9,6 @@ from src.model.feat_extractor import FeatExtractor
 from src.model.predictor import Predictor
 
 
-
 def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.MSELoss(), batch_size: int = 4, t_steps: int = 1, num_obj: int = 4) -> None:
     wandb.init(project="oc-data-collection", entity="atari-obj-pred", name="debug")
     data_loader = DataLoader("SimpleTestDataSmall", num_obj)
@@ -24,11 +23,12 @@ def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.
     )
     images, bboxes, masks, _ = (data_loader.sample(batch_size, t_steps))
     images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
-    target = bboxes[:,:,:2]
+    target = bboxes[:,:,:,:2]  # [B, T, O, 2]
 
     for _ in (range(100)):
         features: torch.Tensor = feat_extract(images, masks)
-        output: torch.Tensor = predictor(features).squeeze(1)
+        output: torch.Tensor = predictor(features)
+        print(output.shape)
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()

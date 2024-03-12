@@ -41,8 +41,8 @@ class DataLoader:
         batch_size: Number of states to sample
         time_steps: Number of time steps to sample for bboxes
         Returns:
-        Tuple containing stacked states [batch_size, stacked_frames=4, channels=3, H=128, W=128], Object bounding boxes [batch_size, num_objects, 4],
-        Masks [batch_size, num_obj, H=128, W=128], Actions [batch_size, 1]
+        Tuple containing stacked states [batch_size, stacked_frames=4, channels=3, H=128, W=128], Object bounding boxes [batch_size, t, num_objects, 4],
+        Masks [batch_size, num_obj, H=128, W=128], Actions [batch_size, t]
         """
         episodes = np.random.choice(len(self.episode_data), size=batch_size, p=self.episode_weights)
         states = []
@@ -51,23 +51,26 @@ class DataLoader:
         actions = []
         for episode in episodes:
             frames, _, object_bounding_boxes, detected_masks, episode_actions = self.episode_data[episode]
-            start = np.random.randint(0, len(frames) - self.history_len)
-            states.append(frames[start:start+self.history_len])
-            object_bounding_boxes_list.append(object_bounding_boxes[start+self.history_len:start+self.history_len+time_steps])
-            masks.append(detected_masks[start+self.history_len])
-            actions.append(episode_actions[start+self.history_len])
+            start = np.random.randint(0, len(frames) - self.history_len - time_steps)
+            base = start + self.history_len
+            states.append(frames[start:base])
+            obj_bbxs = object_bounding_boxes[base:base+time_steps]  # [T, O, 4]
+            object_bounding_boxes_list.append(obj_bbxs)
+            masks.append(detected_masks[base])
+            actions.append(episode_actions[base:base+time_steps])
 
         states = torch.from_numpy(np.array(states))
         states = states / 255
         states = states.permute(0, 4, 1, 2, 3)
         object_bounding_boxes_list = torch.from_numpy(np.array(object_bounding_boxes_list))
-        object_bounding_boxes_list = object_bounding_boxes_list.squeeze(1).float()
+        object_bounding_boxes_list = object_bounding_boxes_list.float()
         object_bounding_boxes_list /= torch.Tensor([states.shape[-2], states.shape[-1], states.shape[-2], states.shape[-1]]).float()
-        object_bounding_boxes_list = object_bounding_boxes_list[:, :self.num_obj]
+        object_bounding_boxes_list = object_bounding_boxes_list[:, :, :self.num_obj]
 
         states = states.reshape(*states.shape[:1], -1, *states.shape[3:])
         states = F.interpolate(states, (128, 128))
         states = states.reshape((-1, 12, 128, 128))
+
         masks = torch.from_numpy(np.array(masks))[:, :self.num_obj]
 
         return states, object_bounding_boxes_list, masks, torch.from_numpy(np.array(actions))
