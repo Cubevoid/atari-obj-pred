@@ -9,29 +9,30 @@ from src.model.feat_extractor import FeatExtractor
 from src.model.predictor import Predictor
 
 
-def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.MSELoss(), batch_size: int = 1, t_steps: int = 1, num_obj: int = 32) -> None:
+
+def train(device: torch.device = torch.device("cpu"), criterion: nn.Module = nn.MSELoss(), batch_size: int = 4, t_steps: int = 1, num_obj: int = 4) -> None:
     wandb.init(project="oc-data-collection", entity="atari-obj-pred", name="debug")
-    data_loader = DataLoader("Pong")
+    data_loader = DataLoader("SimpleTestDataSmall")
     wandb.log({"batch_size": batch_size})
     feat_extract = FeatExtractor(num_objects=num_obj).to(device)
-    # wandb.watch(feat_extract, log="all", log_freq=1, idx=1)
+    wandb.watch(feat_extract, log="all", log_freq=1, idx=1)
     predictor = Predictor(num_layers=1, time_steps=t_steps).to(device)
-    # wandb.watch(predictor, log="all", log_freq=1, idx=2)
+    wandb.watch(predictor, log="all", log_freq=1, idx=2)
     criterion = criterion.to(device)
     optimizer = torch.optim.Adam(
         list(feat_extract.parameters()) + list(predictor.parameters()), lr=1e-3
     )
-    images, bboxes, masks, _ = data_loader.sample(batch_size, t_steps)
+    images, bboxes, masks, _ = (data_loader.sample(batch_size, t_steps))
     target = bboxes[:,:,:2]
 
-    for _ in tqdm(range(1000)):
+    for _ in (range(100)):
         features: torch.Tensor = feat_extract(images, masks)
         output: torch.Tensor = predictor(features)
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
         print(loss.item(), output.mean().item(), output.std().item())
-        wandb.log({"loss": loss})
+        #wandb.log({"loss": loss})
         optimizer.zero_grad()
 
     print(target)

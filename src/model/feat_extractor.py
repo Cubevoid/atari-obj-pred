@@ -36,10 +36,10 @@ class FeatExtractor(torch.nn.Module):
         self.num_objects = num_objects
         self.input_size = input_size
         self.conv = nn.Sequential(
-                nn.Conv2d(3 * num_frames, 64, 3, 1, 1),  # input_size x input_size
+                nn.Conv2d(3 * num_frames, 64, (3, 3), (1, 1), 1),  # input_size x input_size
                 nn.ReLU(),
                 torch.nn.MaxPool2d(2, 2),
-                torch.nn.Conv2d(64, 128, 3, 1, 1),  # input_size x input_size -> input_size/2 x input_size/2
+                torch.nn.Conv2d(64, 128, (3, 3), (1, 1), 1),  # input_size x input_size -> input_size/2 x input_size/2
                 nn.ReLU()
         )
         self.relu = torch.nn.ReLU()
@@ -51,13 +51,11 @@ class FeatExtractor(torch.nn.Module):
         Assume that there are at most num_objects objects in the image.
         Args:
             x: (B, C, input_size/2, input_size/2) input feature map tensor
-            rois: (B, input_size, input_size) uint8 ids of the RoIs in the image
+            rois: (B, obj_number, H, W) Bool masks for each object
         """
-        # (B, 32, input_size, input_size) tensor where each channel is a mask for a RoI
-        rois_one_hot = F.one_hot(rois.long(), num_classes=self.num_objects).permute(0, 3, 1, 2)
 
         # compensate for conv size - (B, num_objects, input_size/2, input_size/2)
-        rois = F.interpolate(rois_one_hot.float(),
+        rois = F.interpolate(rois.float(),
                              size=(self.input_size//2, self.input_size//2),
                              mode='nearest')
 
@@ -74,6 +72,6 @@ class FeatExtractor(torch.nn.Module):
             (B, num_objects, 128) feature vector
         """
         images = self.conv(images)  # [input_size/2, input_size/2]
-        images = self.roi_pool(images, rois)
         images = self.position_embed(images)
-        return images
+        objects = self.roi_pool(images, rois)
+        return objects
