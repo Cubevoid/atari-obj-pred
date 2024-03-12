@@ -1,0 +1,4 @@
+batch_size: 32
+time_steps: 5
+num_objects: 32
+name: debug

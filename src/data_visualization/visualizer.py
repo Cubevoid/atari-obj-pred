@@ -14,7 +14,7 @@ color_map = [plt.cm.tab20(i) for i in np.linspace(0, 1, 32)]  # type: ignore[att
 
 class Visualizer:
     def __init__(self, game: str) -> None:
-        self.data_loader = DataLoader(game)
+        self.data_loader = DataLoader(game, 32)
 
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
