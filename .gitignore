@@ -162,3 +162,7 @@ models/sam_*
 outputs/
 .vscode/
 wandb/
+run.sh
+upload.sh
+logged/
+slurm-*

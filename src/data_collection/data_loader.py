@@ -8,10 +8,11 @@ import torch.nn.functional as F
 from src.data_collection.common import get_data_directory, get_id_from_episode_name, get_length_from_episode_name
 
 class DataLoader:
-    def __init__(self, game: str):
+    def __init__(self, game: str, num_obj: int):
         self.dataset_path = get_data_directory(game)
         self.load_data()
         self.history_len = 4
+        self.num_obj = num_obj
 
     def load_data(self) -> None:
         """
@@ -41,7 +42,7 @@ class DataLoader:
         time_steps: Number of time steps to sample for bboxes
         Returns:
         Tuple containing stacked states [batch_size, stacked_frames=4, channels=3, H=128, W=128], Object bounding boxes [batch_size, num_objects, 4],
-        Masks [batch_size, H=128, W=128], Actions [batch_size, 1]
+        Masks [batch_size, num_obj, H=128, W=128], Actions [batch_size, 1]
         """
         episodes = np.random.choice(len(self.episode_data), size=batch_size, p=self.episode_weights)
         states = []
@@ -62,10 +63,11 @@ class DataLoader:
         object_bounding_boxes_list = torch.from_numpy(np.array(object_bounding_boxes_list))
         object_bounding_boxes_list = object_bounding_boxes_list.squeeze(1).float()
         object_bounding_boxes_list /= torch.Tensor([states.shape[-2], states.shape[-1], states.shape[-2], states.shape[-1]]).float()
+        object_bounding_boxes_list = object_bounding_boxes_list[:, :self.num_obj]
 
         states = states.reshape(*states.shape[:1], -1, *states.shape[3:])
         states = F.interpolate(states, (128, 128))
         states = states.reshape((-1, 12, 128, 128))
-        masks = torch.from_numpy(np.array(masks))
+        masks = torch.from_numpy(np.array(masks))[:, :self.num_obj]
 
         return states, object_bounding_boxes_list, masks, torch.from_numpy(np.array(actions))
