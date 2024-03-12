@@ -30,11 +30,11 @@ def train(config: DictConfig, batch_size: int = 4, t_steps: int = 1, num_obj: in
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
 
-    images, bboxes, masks, _ = data_loader.sample(batch_size, t_steps)
-    images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
-    target = bboxes[:,:,:,:2]  # [B, T, O, 2]
-
     for _ in tqdm(range(100)):
+        images, bboxes, masks, _ = data_loader.sample(batch_size, t_steps)
+        images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
+        target = bboxes[:,:,:,:2]  # [B, T, O, 2]
+
         features: torch.Tensor = feature_extract(images, masks)
         output: torch.Tensor = predictor(features)
         loss: torch.Tensor = criterion(output, target)
@@ -44,8 +44,6 @@ def train(config: DictConfig, batch_size: int = 4, t_steps: int = 1, num_obj: in
         wandb.log({"loss": loss})
         optimizer.zero_grad()
 
-    print(target)
-    print(output)
 
 if __name__ == "__main__":
     train()  # pylint: disable=no-value-for-parameter
