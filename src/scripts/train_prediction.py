@@ -65,7 +65,8 @@ def train(config: DictConfig) -> None:
             for index in notzero:
                 l1sum += abs(target[index[0]][index[1]][index[2]][index[3]]-output[index[0]][index[1]][index[2]][index[3]])
                 total += 1
-            print(l1sum/total)
+            tqdm.write(f"l1 average loss = {l1sum/total}")
+            error_dict["l1average"] = (l1sum/total)
         wandb.log(error_dict)
         optimizer.zero_grad()
 
