@@ -39,9 +39,10 @@ class DataCollector:
         self.episode_actions: List[int] = []
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        weights = "FastSAM-s.pt" if small_sam else "FastSAM-x.pt"
-        self.sam = FastSAM(f"./models/{weights}")
+        weights = "FastSAM-s" if small_sam else "FastSAM-x"
+        self.sam = FastSAM(f"./models/{weights}.pt")
         self.sam.to(self.device)
+        self.model_name = weights
 
     def resize_masks(self, masks: torch.Tensor, size: Tuple[int, ...]) -> torch.Tensor:
         """
@@ -131,7 +132,7 @@ class DataCollector:
         """
         Store the current episode to disk
         """
-        file_name = f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}"
+        file_name = f"{self.dataset_path}/{self.curr_episode_id}-{len(self.episode_frames)}-{self.model_name}"
         episode_object_types = np.array(
             [np.pad(objs_types, (0, self.max_num_objects - len(objs_types)), constant_values="") for objs_types in self.episode_object_types]
         )
