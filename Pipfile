@@ -10,6 +10,7 @@ ocatari = "*"
 numpy = "*"
 pylint = "*"
 segment-anything = {git = "git+https://github.com/facebookresearch/segment-anything.git"}
+clip = {git = "git+https://github.com/openai/CLIP.git"}
 opencv-python-headless = "*"
 pyparsing = "*"
 hydra-core = "*"
@@ -19,6 +20,11 @@ mypy = "*"
 types-tqdm = "*"
 customtkinter = "*"
 black = "*"
+ultralytics = "8.0.120"
+scipy = "*"
+torchvision = "*"
+pandas = "*"
+segment-anything-fast = "*"
 
 [dev-packages]
 

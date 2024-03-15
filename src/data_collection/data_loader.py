@@ -61,9 +61,9 @@ class DataLoader:
             actions.append(episode_actions[base:base+time_steps])
 
         states_tensor = torch.from_numpy(np.array(states))
-        states_tensor  = states_tensor  / 255
-        states_tensor  = states_tensor .permute(0, 4, 1, 2, 3)
-        object_bounding_boxes_tensor= torch.from_numpy(np.array(object_bounding_boxes_list))
+        states_tensor = states_tensor / 255
+        states_tensor = states_tensor.permute(0, 4, 1, 2, 3)
+        object_bounding_boxes_tensor = torch.from_numpy(np.array(object_bounding_boxes_list))
         object_bounding_boxes_tensor = object_bounding_boxes_tensor.float()
         w = states_tensor.shape[-2]
         h = states_tensor.shape[-1]
@@ -75,5 +75,7 @@ class DataLoader:
         states_tensor  = states_tensor .reshape((-1, 12, 128, 128))
 
         masks_tensor = torch.from_numpy(np.array(masks))[:, :self.num_obj]
+        masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]  # get rid of background [B, H, W, O]
+        masks_tensor = masks_tensor.permute(0, 3, 1, 2)  # [B, O, H, W]
 
-        return states_tensor , object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
+        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
