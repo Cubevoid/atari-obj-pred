@@ -1,0 +1,7 @@
+batch_size: 1
+time_steps: 1
+num_objects: 4
+name: debug-training
+game: SimpleTestData
+predictor: mlp
+num_iterations: 10000
