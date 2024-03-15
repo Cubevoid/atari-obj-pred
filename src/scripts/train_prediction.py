@@ -23,20 +23,14 @@ def train(config: DictConfig) -> None:
     game = config.game
     name = config.name
     num_obj = config.num_objects
-    use_mlp = True if config.predictor == "mlp" else False
-    num_iterations = config.num_iterations
+    use_mlp = config.predictor == "mlp"
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     data_loader = DataLoader(game, num_obj)
 
     feature_extract = FeatureExtractor(num_objects=num_obj).to(device)
-    if use_mlp:
-        predictor = MLPPredictor().to(device)
-        time_steps = 1
-    else:
-        predictor = Predictor(num_layers=1, time_steps=time_steps).to(device)
+    predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=time_steps)).to(device)
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=name + game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(config)))
     wandb.log({"batch_size": batch_size})
@@ -46,10 +40,10 @@ def train(config: DictConfig) -> None:
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
 
-    for i in tqdm(range(num_iterations)):
+    for i in tqdm(range(config.num_iterations)):
         images, bboxes, masks, _ = data_loader.sample(batch_size, time_steps)
         images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
-        target = bboxes[:,:,:,:2]  # [B, T, O, 2]
+        target = bboxes[:, :, :, :2]  # [B, T, O, 2]
 
         features: torch.Tensor = feature_extract(images, masks)
         output: torch.Tensor = predictor(features)
@@ -60,21 +54,15 @@ def train(config: DictConfig) -> None:
         if i % 50 == 0:
             tqdm.write(f"loss={loss.item()}, output_mean={output.mean().item()}, std={output.std().item()}")
             tqdm.write(f"target_mean={target.mean().item()} std={target.std().item()}")
-            notzero = torch.nonzero(target)
-            l1sum = 0
-            total = 0
-            for index in notzero:
-                l1sum += abs(target[index[0]][index[1]][index[2]][index[3]]-output[index[0]][index[1]][index[2]][index[3]])
-                total += 1
+            mask = target != 0
+            l1sum = torch.sum(torch.abs(target[mask] - output[mask]))
+            total = torch.sum(mask)
             tqdm.write(f"l1 average loss = {l1sum/total}")
             tqdm.write(f"Predicted: {output[:,:,0]}, Target: {target[:,:,0]}")
-        error_dict = {"loss": loss,
-                    "error/x": diff[:,:,:,0].mean(),
-                    "error/y": diff[:,:,:,1].mean()
-        }
+        error_dict = {"loss": loss, "error/x": diff[:, :, :, 0].mean(), "error/y": diff[:, :, :, 1].mean()}
         for t in range(time_steps):
             error_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
-        error_dict["l1average"] = (l1sum/total)
+        error_dict["l1average"] = l1sum / total
         wandb.log(error_dict)
         optimizer.zero_grad()
 
@@ -84,6 +72,7 @@ def train(config: DictConfig) -> None:
     torch.save(feature_extract.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_feat_extract.pth"))
     model_name = "mlp_predictor" if use_mlp else "transformer_predictor"
     torch.save(predictor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_{model_name}.pth"))
+
 
 if __name__ == "__main__":
     train()  # pylint: disable=no-value-for-parameter
