@@ -77,7 +77,7 @@ class DataCollector:
             obs = np.pad(obs, ((0, padded_size[0] - orig_size[0]), (0, padded_size[1] - orig_size[1]), (0, 0)))
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
-                results = None# self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
+                results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
             if results is None:
                 masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
@@ -98,7 +98,7 @@ class DataCollector:
                 object_types.append(obj.category)
                 object_bounding_boxes.append(np.array(obj.xywh))
                 object_xy.append(np.array(obj.xy))
-                last_idx = -1 if obj.last_xy == (0,0) else self.episode_object_xy[-1].index(np.array(obj.last_xy))
+                last_idx = -1 if not hasattr(obj, 'last_xyz') or obj.last_xy == (0,0) else self.episode_object_xy[-1].index(np.array(obj.last_xy))
                 object_last_idx.append(last_idx)
             # we must track the objects between frames
             self.episode_object_types.append(object_types)
@@ -153,7 +153,7 @@ class DataCollector:
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
         episode_object_last_idx= np.array(
-            [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx)), (0, 0))) for objs_last_idx in self.episode_object_last_idx]
+            [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx)))) for objs_last_idx in self.episode_object_last_idx]
         )
 
         np.savez_compressed(
