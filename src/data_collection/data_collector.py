@@ -35,6 +35,8 @@ class DataCollector:
         self.episode_frames: List[npt.NDArray] = []
         self.episode_object_types: List[List[str]] = []
         self.episode_object_bounding_boxes: List[List[npt.NDArray]] = []
+        self.episode_object_xy: List[List[npt.NDArray]] = []
+        self.episode_object_last_idx: List[List[int]] = []
         self.episode_detected_masks: List[npt.NDArray] = []  # uint8 list of (H, W) masks
         self.episode_actions: List[int] = []
 
@@ -75,25 +77,36 @@ class DataCollector:
             obs = np.pad(obs, ((0, padded_size[0] - orig_size[0]), (0, padded_size[1] - orig_size[1]), (0, 0)))
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
-                results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
+                results = None# self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
             if results is None:
                 masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
                 masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
-                masks = self.filter_and_sort_masks(orig_size, masks)
+                masks = self.filter_sort_resize_masks(orig_size, masks)
                 masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
                 # uint8 array (H, W) of mask ids, assuming they do not overlap
                 masks = masks.argmax(axis=0).astype(np.uint8)
-            self.episode_detected_masks.append(masks)
 
             wandb.log({"data_collected": counter})
 
             # Ground truth
-            self.episode_object_types.append([])
-            self.episode_object_bounding_boxes.append([])
+            object_types = []
+            object_bounding_boxes = []
+            object_xy = []
+            object_last_idx = []
             for obj in self.env.objects:
-                self.episode_object_types[-1].append(obj.category)
-                self.episode_object_bounding_boxes[-1].append(np.array(obj.xywh))
+                object_types.append(obj.category)
+                object_bounding_boxes.append(np.array(obj.xywh))
+                object_xy.append(np.array(obj.xy))
+                last_idx = -1 if obj.last_xy == (0,0) else self.episode_object_xy[-1].index(np.array(obj.last_xy))
+                object_last_idx.append(last_idx)
+            # we must track the objects between frames
+            self.episode_object_types.append(object_types)
+            self.episode_object_bounding_boxes.append(object_bounding_boxes)
+            self.episode_object_xy.append(object_xy)
+            self.episode_object_last_idx.append(object_last_idx)
+            # now match the masks to the objects
+            self.episode_detected_masks.append(masks)
 
             progress_bar.update(1)
             if terminated or truncated:
@@ -102,7 +115,7 @@ class DataCollector:
                 obs, _ = self.env.reset()
         progress_bar.close()
 
-    def filter_and_sort_masks(self, orig_size: Tuple[int, ...], masks: npt.NDArray) -> npt.NDArray:
+    def filter_sort_resize_masks(self, orig_size: Tuple[int, ...], masks: npt.NDArray) -> npt.NDArray:
         """
         Filter masks for duplicates and sort them by size.
         Args:
@@ -139,6 +152,9 @@ class DataCollector:
         episode_object_bounding_boxes = np.array(
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
+        episode_object_last_idx= np.array(
+            [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx)), (0, 0))) for objs_last_idx in self.episode_object_last_idx]
+        )
 
         np.savez_compressed(
             file_name,
@@ -147,7 +163,9 @@ class DataCollector:
             episode_object_bounding_boxes=episode_object_bounding_boxes,
             episode_detected_masks=np.array(self.episode_detected_masks),
             episode_actions=np.array(self.episode_actions),
+            episode_last_idx=episode_object_last_idx
         )
+
         self.curr_episode_id += 1
         episode_length = len(self.episode_frames)
         self.collected_data += episode_length

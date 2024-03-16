@@ -1,3 +1,4 @@
+import random
 from typing import List, Any, Tuple
 import numpy as np
 import numpy.typing as npt
@@ -6,8 +7,10 @@ import gymnasium
 from gymnasium import spaces
 
 class SimpleObject:
-    def __init__(self, x: int, y: int, w: int, h: int) -> None:
+    def __init__(self, x: int, y: int, w: int, h: int, lx: int, ly: int) -> None:
         self.xywh = (x,y,w,h)
+        self.xy = (x,y)
+        self.last_xy = (lx,ly)
         self.category = "Test"
 
 class SimpleTestData(gymnasium.Env):
@@ -47,10 +50,13 @@ class SimpleTestData(gymnasium.Env):
         image_height = 128
 
         # Set the number of frames in the sequence
-        num_frames = 100
+        num_frames = 10
 
         # Create an empty list to store the frames
         frames = []
+
+        objects = [[random.randint(0, 30), random.randint(0, 30)], [random.randint(100, 120), random.randint(50, 80)]]
+        speeds = [[random.randint(0, 3), random.randint(0, 3)], [ random.randint(-3, 0), random.randint(-3, 0)]]
 
         # Generate each frame
         for i in range(num_frames):
@@ -58,12 +64,20 @@ class SimpleTestData(gymnasium.Env):
             image = np.ones((image_height, image_width, 3), dtype=np.uint8) * 255
 
             # Calculate the position of the circle
-            circle_x = int(i * (image_width / num_frames))
-            circle_y = int(i * (image_height / num_frames))
-            self.all_objects.append([SimpleObject(circle_x - 10, circle_y - 10, 10, 10)])
+            for i in range(len(objects)):
+                x,y = objects[i]
+                nx, ny = x + speeds[i][0], y + speeds[i][1]
+                if nx < 0 or nx > image_width:
+                    speeds[i][0] *= -1
+                if ny < 0 or ny > image_height:
+                    speeds[i][1] *= -1
+                circle_x = nx
+                circle_y = ny
+                self.all_objects.append([SimpleObject(circle_x - 10, circle_y - 10, 10, 10, x, y)])
 
-            # Draw the circle on the image
-            cv2.circle(image, (circle_x, circle_y), 10, 0, -1)  # type: ignore
+                # Draw the circle on the image
+                cv2.circle(image, (circle_x, circle_y), 10, 0, -1)  # type: ignore
+                objects[i] = [nx, ny]
 
             # Add the frame to the list
             frames.append(image)
