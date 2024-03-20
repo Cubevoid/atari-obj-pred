@@ -29,7 +29,7 @@ class DataLoader:
             episode_id = get_id_from_episode_name(episode)
             assert episode_id not in episode_data, f"Episode {episode_id} already exists in the dataset"
             episode_data[episode_id] = (data["episode_frames"], data["episode_object_types"], data["episode_object_bounding_boxes"],
-                                data["episode_detected_masks"], data["episode_actions"])
+                                data["episode_detected_masks"], data["episode_actions"], data["episode_last_idx"])
             episode_counts += 1
 
         self.episode_data = episode_data
@@ -51,12 +51,18 @@ class DataLoader:
         masks: List[npt.NDArray] = []
         actions = []
         for episode in episodes:
-            frames, _, object_bounding_boxes, detected_masks, episode_actions = self.episode_data[episode]
+            frames, _, object_bounding_boxes, detected_masks, episode_actions, last_idxs = self.episode_data[episode]
             start = np.random.randint(0, len(frames) - self.history_len - time_steps)
             base = start + self.history_len
             states.append(frames[start:base])
             obj_bbxs = object_bounding_boxes[base:base+time_steps]  # [T, O, 4]
-            object_bounding_boxes_list.append(obj_bbxs)
+            objs = (obj_bbxs[0].sum(-1) != 0)  # [O]
+            orderd_bbxs = np.zeros_like(obj_bbxs)  # [T, O, 4] ordered by the initial object they are tracking
+            order = np.arange(objs.sum())  # [o]
+            for t in range(time_steps):
+                orderd_bbxs[t, order] = obj_bbxs[t, objs]
+                order = last_idxs[base + t, order]
+            object_bounding_boxes_list.append(orderd_bbxs)
             masks.append(detected_masks[base])
             actions.append(episode_actions[base:base+time_steps])
 

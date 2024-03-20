@@ -78,16 +78,25 @@ class DataCollector:
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
                 results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
+            masks_idx = []
+            masks_center = np.zeros((0,2))
+            masks_size = np.zeros((0,))
             if results is None:
                 masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
                 masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
                 masks = self.filter_sort_resize_masks(orig_size, masks)
-                masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
-                # uint8 array (H, W) of mask ids, assuming they do not overlap
-                masks = masks.argmax(axis=0).astype(np.uint8)
-
-            wandb.log({"data_collected": counter})
+                # masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
+                masks_idx = np.arange(num_masks)  # this is used later in the matching
+                masks_center = np.zeros((num_masks, 2))
+                masks_size = np.zeros(num_masks)
+                num_masks = (masks.sum(-1).sum(-1) != 0).sum()
+                for i in range(num_masks):
+                    mask = masks[i]
+                    y, x = np.where(mask)
+                    masks_center[i, 0] = x.mean()
+                    masks_center[i, 1] = y.mean()
+                    masks_size[i] = len(x)
 
             # Ground truth
             object_types = []
@@ -100,14 +109,31 @@ class DataCollector:
                 object_xy.append(np.array(obj.xy))
                 last_idx = -1 if not hasattr(obj, 'last_xy') or obj.last_xy == (0,0) else self.episode_object_xy[-1].index(np.array(obj.last_xy))
                 object_last_idx.append(last_idx)
-            # we must track the objects between frames
+            object_bounding_boxes = np.array(object_bounding_boxes)
+
             self.episode_object_types.append(object_types)
             self.episode_object_bounding_boxes.append(object_bounding_boxes)
             self.episode_object_xy.append(object_xy)
             self.episode_object_last_idx.append(object_last_idx)
-            # now match the masks to the objects
+            # we must track the objects between frames
+            pos_costs = (object_bounding_boxes[:, :2] + object_bounding_boxes[:, 2:] / 2)[:, np.newaxis, :] - masks_center[np.newaxis, :, :]
+            pos_costs = np.linalg.norm(pos_costs, axis=2)
+            size_costs = np.abs(object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
+            costs = pos_costs + size_costs
+            num_objects = len(object_types)
+            matched_masks = np.zeros_like(masks)
+            while len(masks_idx) > 0 and num_objects > 0:
+                min_pos = np.argmin(costs)
+                matched_masks[min_pos[0]] = masks[min_pos[1]]
+                costs[min_pos[0]] = np.inf
+                costs[:, min_pos[1]] = np.inf
+                num_objects -= 1
+            
+            # uint8 array (H, W) of mask ids, assuming they do not overlap
+            masks = matched_masks.argmax(axis=0).astype(np.uint8)
             self.episode_detected_masks.append(masks)
 
+            wandb.log({"data_collected": counter})
             progress_bar.update(1)
             if terminated or truncated:
                 self.store_episode()
@@ -153,7 +179,7 @@ class DataCollector:
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
         episode_object_last_idx= np.array(
-            [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx)))) for objs_last_idx in self.episode_object_last_idx]
+            [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx))), constant_values=-1) for objs_last_idx in self.episode_object_last_idx]
         )
 
         np.savez_compressed(
