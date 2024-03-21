@@ -1,3 +1,6 @@
+cp ./src/utils/format.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
 cd ./models
 
 if [ ! -f sam_vit_b_01ec64.pth ]; then
