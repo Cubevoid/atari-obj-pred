@@ -87,10 +87,10 @@ class DataCollector:
                 masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
                 masks = self.filter_sort_resize_masks(orig_size, masks)
                 # masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
+                num_masks = (masks.sum(-1).sum(-1) != 0).sum()
                 masks_idx = np.arange(num_masks)  # this is used later in the matching
                 masks_center = np.zeros((num_masks, 2))
                 masks_size = np.zeros(num_masks)
-                num_masks = (masks.sum(-1).sum(-1) != 0).sum()
                 for i in range(num_masks):
                     mask = masks[i]
                     y, x = np.where(mask)
@@ -106,9 +106,9 @@ class DataCollector:
             for obj in self.env.objects:
                 object_types.append(obj.category)
                 object_bounding_boxes.append(np.array(obj.xywh))
-                object_xy.append(np.array(obj.xy))
+                object_xy.append(obj.xy)
                 last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0,0) else \
-                    self.episode_object_xy[-1].index(np.array(obj.prev_xy))
+                    self.episode_object_xy[-1].index(obj.prev_xy)
                 object_last_idx.append(last_idx)
             object_bounding_boxes = np.array(object_bounding_boxes)
 
@@ -122,9 +122,10 @@ class DataCollector:
             size_costs = np.abs(object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
             costs = pos_costs + size_costs
             num_objects = len(object_types)
-            matched_masks = np.zeros_like(masks)
+            print(num_objects, len(masks_idx))
+            matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))
             while len(masks_idx) > 0 and num_objects > 0:
-                min_pos = np.argmin(costs)
+                min_pos = np.unravel_index(np.argmin(costs), costs.shape)
                 matched_masks[min_pos[0]] = masks[min_pos[1]]
                 costs[min_pos[0]] = np.inf
                 costs[:, min_pos[1]] = np.inf
