@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import os
+import cv2
 import numpy as np
 import numpy.typing as npt
 from ocatari.core import OCAtari
@@ -55,6 +56,10 @@ class DataCollector:
             (B, C, 128, 128) tensor
         """
         return F.interpolate(masks.unsqueeze(1), size=size, mode="nearest").squeeze(1)
+        weights = "FastSAM-s" if small_sam else "FastSAM-x"
+        self.sam = FastSAM(f"./models/{weights}.pt")
+        self.sam.to(self.device)
+        self.model_name = weights
 
     def collect_data(self) -> None:
         """
@@ -77,16 +82,16 @@ class DataCollector:
             obs = np.pad(obs, ((0, padded_size[0] - orig_size[0]), (0, padded_size[1] - orig_size[1]), (0, 0)))
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
-                results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
-            masks_idx = []
-            masks_center = np.zeros((0,2))
-            masks_size = np.zeros((0,))
+                # Upscale SAM input
+                upscaled = cv2.resize(obs, (1024, 1024))
+                results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
             if results is None:
                 masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
-                masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
-                masks = self.filter_sort_resize_masks(orig_size, masks)
-                # masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
+                masks = results[0].masks.data.cpu().unsqueeze(0).to(torch.float32)  # (N, H, W)
+                masks = F.interpolate(masks, padded_size, mode="nearest").numpy().astype(bool).squeeze(0)
+                masks = self.filter_and_sort_masks(orig_size, masks)
+                masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
                 num_masks = (masks.sum(-1).sum(-1) != 0).sum()
                 masks_idx = np.arange(num_masks)  # this is used later in the matching
                 masks_center = np.zeros((num_masks, 2))
@@ -107,8 +112,7 @@ class DataCollector:
                 object_types.append(obj.category)
                 object_bounding_boxes.append(np.array(obj.xywh))
                 object_xy.append(obj.xy)
-                last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0,0) else \
-                    self.episode_object_xy[-1].index(obj.prev_xy)
+                last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) else self.episode_object_xy[-1].index(obj.prev_xy)
                 object_last_idx.append(last_idx)
             object_bounding_boxes = np.array(object_bounding_boxes)
 
@@ -130,44 +134,18 @@ class DataCollector:
                 costs[min_pos[0]] = np.inf
                 costs[:, min_pos[1]] = np.inf
                 num_objects -= 1
-            
+
             # uint8 array (H, W) of mask ids, assuming they do not overlap
             masks = matched_masks.argmax(axis=0).astype(np.uint8)
             self.episode_detected_masks.append(masks)
 
             wandb.log({"data_collected": counter})
             progress_bar.update(1)
-            if terminated or truncated:
+            if terminated or truncated or counter == 400:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
         progress_bar.close()
-
-    def filter_sort_resize_masks(self, orig_size: Tuple[int, ...], masks: npt.NDArray) -> npt.NDArray:
-        """
-        Filter masks for duplicates and sort them by size.
-        Args:
-            orig_size: (H, W) tuple, the original size of the image
-            masks: (N, H, W) binary masks
-        Returns:
-            List[npt.NDArray] of HxW binary masks
-        """
-        padded_masks = np.zeros(
-            (masks.shape[0], orig_size[0], orig_size[1]),
-            dtype=bool,
-        )  # (num_objects, H, W)
-        indiv_masks = sorted(
-            [masks[i,:orig_size[0],:orig_size[1]] for i in range(masks.shape[0]) if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2],
-            key=lambda m: m.sum(),
-            reverse=True,
-        )
-        c = 0
-        for mask in indiv_masks:
-            # ensure we dont have duplicate masks
-            if c == 0 or max((np.bitwise_and(mask, m)).sum() for m in padded_masks[:c]) / mask.sum() < 0.8:
-                padded_masks[c] = mask
-                c += 1
-        return padded_masks
 
     def store_episode(self) -> None:
         """
@@ -180,7 +158,7 @@ class DataCollector:
         episode_object_bounding_boxes = np.array(
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
-        episode_object_last_idx= np.array(
+        episode_object_last_idx = np.array(
             [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx))), constant_values=-1) for objs_last_idx in self.episode_object_last_idx]
         )
 
@@ -191,7 +169,7 @@ class DataCollector:
             episode_object_bounding_boxes=episode_object_bounding_boxes,
             episode_detected_masks=np.array(self.episode_detected_masks),
             episode_actions=np.array(self.episode_actions),
-            episode_last_idx=episode_object_last_idx
+            episode_last_idx=episode_object_last_idx,
         )
 
         self.curr_episode_id += 1
