@@ -37,8 +37,7 @@ def train(config: DictConfig) -> None:
     wandb.watch(predictor, log="gradients", log_freq=100, idx=2)
 
     criterion = nn.MSELoss().to(device)
-    #optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
-    optimizer = torch.optim.Adam(list(predictor.parameters()), lr=1e-3)
+    optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
 
     for i in tqdm(range(500)):
         images, bboxes, masks, _ = data_loader.sample(batch_size, time_steps)
@@ -67,7 +66,7 @@ def train(config: DictConfig) -> None:
                 l1sum += abs(target[index[0]][index[1]][index[2]][index[3]]-output[index[0]][index[1]][index[2]][index[3]])
                 total += 1
             tqdm.write(f"l1 average loss = {l1sum/total}")
-            error_dict["l1average"] = (l1sum/total)
+            error_dict["l1average"] = l1sum/total
         wandb.log(error_dict)
         optimizer.zero_grad()
 

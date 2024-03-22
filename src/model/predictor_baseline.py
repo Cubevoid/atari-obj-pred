@@ -1,8 +1,6 @@
-from typing import Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
-import wandb
 
 class PredictorBaseline(nn.Module):
     def __init__(self, input_size: int = 128, time_steps: int = 5):
