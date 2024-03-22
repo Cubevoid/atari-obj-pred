@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import os
+import cv2
 import numpy as np
 import numpy.typing as npt
 from ocatari.core import OCAtari
@@ -34,7 +35,9 @@ class DataCollector:
         self.collected_data = self.get_collected_data()
         self.episode_frames: List[npt.NDArray] = []
         self.episode_object_types: List[List[str]] = []
-        self.episode_object_bounding_boxes: List[List[npt.NDArray]] = []
+        self.episode_object_bounding_boxes: List[npt.NDArray] = []
+        self.episode_object_xy: List[List[Tuple[int,int]]] = []
+        self.episode_object_last_idx: List[List[int]] = []
         self.episode_detected_masks: List[npt.NDArray] = []  # uint8 list of (H, W) masks
         self.episode_actions: List[int] = []
 
@@ -43,16 +46,6 @@ class DataCollector:
         self.sam = FastSAM(f"./models/{weights}.pt")
         self.sam.to(self.device)
         self.model_name = weights
-
-    def resize_masks(self, masks: torch.Tensor, size: Tuple[int, ...]) -> torch.Tensor:
-        """
-        Resize the masks to 128x128
-        Args:
-            masks: (C, H, W) tensor
-        Returns:
-            (B, C, 128, 128) tensor
-        """
-        return F.interpolate(masks.unsqueeze(1), size=size, mode="nearest").squeeze(1)
 
     def collect_data(self) -> None:
         """
@@ -75,26 +68,63 @@ class DataCollector:
             obs = np.pad(obs, ((0, padded_size[0] - orig_size[0]), (0, padded_size[1] - orig_size[1]), (0, 0)))
             # SAM masks
             with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
-                results = self.sam(obs, retina_masks=True, imgsz=max(padded_size), conf=0.4, iou=0.9, verbose=False)
+                # Upscale SAM input
+                upscaled = cv2.resize(obs, (1024, 1024))
+                results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
             if results is None:
                 masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
-                masks = results[0].masks.data.cpu().numpy().astype(bool)  # (N, H, W)
+                masks = results[0].masks.data.cpu().unsqueeze(0).to(torch.float32)  # (N, H, W)
+                masks = F.interpolate(masks, padded_size, mode="nearest").numpy().astype(bool).squeeze(0)
                 masks = self.filter_and_sort_masks(orig_size, masks)
                 masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
-                # uint8 array (H, W) of mask ids, assuming they do not overlap
-                masks = masks.argmax(axis=0).astype(np.uint8)
+                num_masks = (masks.sum(-1).sum(-1) != 0).sum()
+                masks_idx = np.arange(num_masks)  # this is used later in the matching
+                masks_center = np.zeros((num_masks, 2))
+                masks_size = np.zeros(num_masks)
+                for i in range(num_masks):
+                    mask = masks[i]
+                    y, x = np.where(mask)
+                    masks_center[i, 0] = x.mean()
+                    masks_center[i, 1] = y.mean()
+                    masks_size[i] = len(x)
+
+            # Ground truth
+            object_types = []
+            object_bounding_boxes = []
+            object_xy = []
+            object_last_idx = []
+            for obj in self.env.objects:
+                object_types.append(obj.category)
+                object_bounding_boxes.append(np.array(obj.xywh))
+                object_xy.append(obj.xy)
+                last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) else self.episode_object_xy[-1].index(obj.prev_xy)
+                object_last_idx.append(last_idx)
+            np_object_bounding_boxes = np.array(object_bounding_boxes)
+
+            self.episode_object_types.append(object_types)
+            self.episode_object_bounding_boxes.append(np_object_bounding_boxes)
+            self.episode_object_xy.append(object_xy)
+            self.episode_object_last_idx.append(object_last_idx)
+            # we must track the objects between frames
+            pos_costs = (np_object_bounding_boxes[:, :2] + np_object_bounding_boxes[:, 2:] / 2)[:, np.newaxis, :] - masks_center[np.newaxis, :, :]
+            pos_costs = np.linalg.norm(pos_costs, axis=2)
+            size_costs = np.abs(np_object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
+            costs = pos_costs + size_costs
+            num_objects = len(object_types)
+            matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))
+            while len(masks_idx) > 0 and num_objects > 0:
+                min_pos = np.unravel_index(np.argmin(costs), costs.shape)
+                matched_masks[min_pos[0]] = masks[min_pos[1]]
+                costs[min_pos[0]] = np.inf
+                costs[:, min_pos[1]] = np.inf
+                num_objects -= 1
+
+            # uint8 array (H, W) of mask ids, assuming they do not overlap
+            masks = matched_masks.argmax(axis=0).astype(np.uint8)
             self.episode_detected_masks.append(masks)
 
             wandb.log({"data_collected": counter})
-
-            # Ground truth
-            self.episode_object_types.append([])
-            self.episode_object_bounding_boxes.append([])
-            for obj in self.env.objects:
-                self.episode_object_types[-1].append(obj.category)
-                self.episode_object_bounding_boxes[-1].append(np.array(obj.xywh))
-
             progress_bar.update(1)
             if terminated or truncated:
                 self.store_episode()
@@ -139,6 +169,9 @@ class DataCollector:
         episode_object_bounding_boxes = np.array(
             [np.pad(objs_bb, ((0, self.max_num_objects - len(objs_bb)), (0, 0))) for objs_bb in self.episode_object_bounding_boxes]
         )
+        episode_object_last_idx = np.array(
+            [np.pad(objs_last_idx, ((0, self.max_num_objects - len(objs_last_idx))), constant_values=-1) for objs_last_idx in self.episode_object_last_idx]
+        )
 
         np.savez_compressed(
             file_name,
@@ -147,7 +180,9 @@ class DataCollector:
             episode_object_bounding_boxes=episode_object_bounding_boxes,
             episode_detected_masks=np.array(self.episode_detected_masks),
             episode_actions=np.array(self.episode_actions),
+            episode_last_idx=episode_object_last_idx,
         )
+
         self.curr_episode_id += 1
         episode_length = len(self.episode_frames)
         self.collected_data += episode_length
@@ -157,6 +192,8 @@ class DataCollector:
         self.episode_object_bounding_boxes = []
         self.episode_detected_masks = []
         self.episode_actions = []
+        self.episode_object_xy = []
+        self.episode_object_last_idx = []
 
     def determine_next_episode(self) -> None:
         """
