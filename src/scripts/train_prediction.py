@@ -66,7 +66,7 @@ def train(config: DictConfig) -> None:
                 l1sum += abs(float(target[index[0]][index[1]][index[2]][index[3]])-float(output[index[0]][index[1]][index[2]][index[3]]))
                 total += 1
             tqdm.write(f"l1 average loss = {l1sum/total}")
-            error_dict["l1average"] = l1sum/total
+            error_dict["l1average"] = torch.tensor(l1sum/total)
         wandb.log(error_dict)
         optimizer.zero_grad()
 
