@@ -47,20 +47,6 @@ class DataCollector:
         self.sam.to(self.device)
         self.model_name = weights
 
-    def resize_masks(self, masks: torch.Tensor, size: Tuple[int, ...]) -> torch.Tensor:
-        """
-        Resize the masks to 128x128
-        Args:
-            masks: (C, H, W) tensor
-        Returns:
-            (B, C, 128, 128) tensor
-        """
-        return F.interpolate(masks.unsqueeze(1), size=size, mode="nearest").squeeze(1)
-        weights = "FastSAM-s" if small_sam else "FastSAM-x"
-        self.sam = FastSAM(f"./models/{weights}.pt")
-        self.sam.to(self.device)
-        self.model_name = weights
-
     def collect_data(self) -> None:
         """
         Collects data from the environment for a given number of steps.
@@ -126,7 +112,6 @@ class DataCollector:
             size_costs = np.abs(object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
             costs = pos_costs + size_costs
             num_objects = len(object_types)
-            print(num_objects, len(masks_idx))
             matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))
             while len(masks_idx) > 0 and num_objects > 0:
                 min_pos = np.unravel_index(np.argmin(costs), costs.shape)
@@ -141,11 +126,37 @@ class DataCollector:
 
             wandb.log({"data_collected": counter})
             progress_bar.update(1)
-            if terminated or truncated or counter == 400:
+            if terminated or truncated:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
         progress_bar.close()
+
+    def filter_and_sort_masks(self, orig_size: Tuple[int, ...], masks: npt.NDArray) -> npt.NDArray:
+        """
+        Filter masks for duplicates and sort them by size.
+        Args:
+            orig_size: (H, W) tuple, the original size of the image
+            masks: (N, H, W) binary masks
+        Returns:
+            List[npt.NDArray] of HxW binary masks
+        """
+        padded_masks = np.zeros(
+            (masks.shape[0], orig_size[0], orig_size[1]),
+            dtype=bool,
+        )  # (num_objects, H, W)
+        indiv_masks = sorted(
+            [masks[i,:orig_size[0],:orig_size[1]] for i in range(masks.shape[0]) if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2],
+            key=lambda m: m.sum(),
+            reverse=True,
+        )
+        c = 0
+        for mask in indiv_masks:
+            # ensure we dont have duplicate masks
+            if c == 0 or max((np.bitwise_and(mask, m)).sum() for m in padded_masks[:c]) / mask.sum() < 0.8:
+                padded_masks[c] = mask
+                c += 1
+        return padded_masks
 
     def store_episode(self) -> None:
         """
