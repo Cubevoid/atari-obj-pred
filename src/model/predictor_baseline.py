@@ -9,7 +9,7 @@ class PredictorBaseline(nn.Module):
         self.fc1 = nn.Linear(input_size, input_size)
         self.fc2 = nn.Linear(input_size, 2)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         predictions = []
         for _ in range(self.time_steps):
             predictions.append(F.relu(self.fc1(x)))

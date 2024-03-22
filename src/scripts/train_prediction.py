@@ -60,10 +60,10 @@ def train(config: DictConfig) -> None:
             error_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
         if i % 50 == 0:
             notzero = torch.nonzero(target)
-            l1sum = 0
+            l1sum = 0.
             total = 0
             for index in notzero:
-                l1sum += abs(target[index[0]][index[1]][index[2]][index[3]]-output[index[0]][index[1]][index[2]][index[3]])
+                l1sum += abs(float(target[index[0]][index[1]][index[2]][index[3]])-float(output[index[0]][index[1]][index[2]][index[3]]))
                 total += 1
             tqdm.write(f"l1 average loss = {l1sum/total}")
             error_dict["l1average"] = l1sum/total
