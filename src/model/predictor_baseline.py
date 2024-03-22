@@ -16,5 +16,5 @@ class PredictorBaseline(nn.Module):
         for _ in range(self.time_steps):
             predictions.append(F.relu(self.fc1(x)))
         x = torch.stack(predictions, 1)
-        x = F.sigmoid(self.fc2(x))
+        x = self.fc2(x)
         return x
