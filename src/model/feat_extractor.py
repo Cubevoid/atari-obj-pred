@@ -56,7 +56,6 @@ class FeatureExtractor(torch.nn.Module):
             x: (B, C, input_size/2, input_size/2) input feature map tensor
             rois: (B, obj_number, H, W) Bool masks for each object
         """
-
         # compensate for conv size - (B, num_objects, input_size/2, input_size/2)
         rois = F.interpolate(rois.float(), size=(self.input_size // 2, self.input_size // 2), mode="nearest")
 
