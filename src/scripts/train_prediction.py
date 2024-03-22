@@ -18,13 +18,11 @@ from src.model.mlp_predictor import MLPPredictor
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
 def train(cfg: DictConfig) -> None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_mlp = cfg.predictor == "mlp"
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     data_loader = DataLoader(cfg.game, cfg.num_objects)
-
-    feature_extract = FeatureExtractor(num_objects=cfg.num_objects).to(device)
+    feature_extract = FeatureExtractor(num_objects=cfg.num_objects, debug=cfg.debug).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
