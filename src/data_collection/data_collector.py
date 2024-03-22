@@ -35,8 +35,8 @@ class DataCollector:
         self.collected_data = self.get_collected_data()
         self.episode_frames: List[npt.NDArray] = []
         self.episode_object_types: List[List[str]] = []
-        self.episode_object_bounding_boxes: List[List[npt.NDArray]] = []
-        self.episode_object_xy: List[List[npt.NDArray]] = []
+        self.episode_object_bounding_boxes: List[npt.NDArray] = []
+        self.episode_object_xy: List[List[Tuple[int,int]]] = []
         self.episode_object_last_idx: List[List[int]] = []
         self.episode_detected_masks: List[npt.NDArray] = []  # uint8 list of (H, W) masks
         self.episode_actions: List[int] = []
@@ -100,16 +100,16 @@ class DataCollector:
                 object_xy.append(obj.xy)
                 last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) else self.episode_object_xy[-1].index(obj.prev_xy)
                 object_last_idx.append(last_idx)
-            object_bounding_boxes = np.array(object_bounding_boxes)
+            np_object_bounding_boxes = np.array(object_bounding_boxes)
 
             self.episode_object_types.append(object_types)
-            self.episode_object_bounding_boxes.append(object_bounding_boxes)
+            self.episode_object_bounding_boxes.append(np_object_bounding_boxes)
             self.episode_object_xy.append(object_xy)
             self.episode_object_last_idx.append(object_last_idx)
             # we must track the objects between frames
-            pos_costs = (object_bounding_boxes[:, :2] + object_bounding_boxes[:, 2:] / 2)[:, np.newaxis, :] - masks_center[np.newaxis, :, :]
+            pos_costs = (np_object_bounding_boxes[:, :2] + np_object_bounding_boxes[:, 2:] / 2)[:, np.newaxis, :] - masks_center[np.newaxis, :, :]
             pos_costs = np.linalg.norm(pos_costs, axis=2)
-            size_costs = np.abs(object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
+            size_costs = np.abs(np_object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
             costs = pos_costs + size_costs
             num_objects = len(object_types)
             matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))

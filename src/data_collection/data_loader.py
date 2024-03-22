@@ -56,7 +56,7 @@ class DataLoader:
             base = start + self.history_len
             states.append(frames[start:base])
             obj_bbxs = object_bounding_boxes[base:base+time_steps]  # [T, O, 4]
-            objs = (obj_bbxs[0].sum(-1) != 0)  # [O]
+            objs = obj_bbxs[0].sum(-1) != 0  # [O]
             orderd_bbxs = np.zeros_like(obj_bbxs)  # [T, O, 4] ordered by the initial object they are tracking
             order = np.arange(objs.sum())  # [o]
             for t in range(time_steps):
