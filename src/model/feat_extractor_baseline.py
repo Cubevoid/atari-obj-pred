@@ -3,11 +3,12 @@ from torch import nn
 import torch.nn.functional as F
 
 class FeatureExtractorBaseline(nn.Module):
-    def __init__(self, input_size: int = 128, num_objects: int = 32, num_features: int = 128):
+    def __init__(self, input_size: int = 128, num_objects: int = 32, num_features: int = 128, device: str = 'cpu'):
         super().__init__()
         self.input_size = input_size
         self.num_objects = num_objects
         self.fc1 = nn.Linear(2, num_features)
+        self.device = device
 
     def forward(self, rois: torch.Tensor) -> torch.Tensor:
         """
@@ -16,8 +17,8 @@ class FeatureExtractorBaseline(nn.Module):
         Returns:
             (B, num_objects, num_features) feature vector
         """
-        x_indices = torch.arange(self.input_size, dtype=torch.float32).view(1, 1, -1, 1)
-        y_indices = torch.arange(self.input_size, dtype=torch.float32).view(1, 1, 1, -1)
+        x_indices = torch.arange(self.input_size, dtype=torch.float32, device=self.device).view(1, 1, -1, 1)
+        y_indices = torch.arange(self.input_size, dtype=torch.float32, device=self.device).view(1, 1, 1, -1)
 
         sum_x = torch.sum(rois * x_indices, dim=(2, 3))
         sum_y = torch.sum(rois * y_indices, dim=(2, 3))

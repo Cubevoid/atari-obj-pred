@@ -27,9 +27,9 @@ def train(cfg: DictConfig) -> None:
 
     data_loader = DataLoader(cfg.game, cfg.num_objects)
     feature_extract = FeatureExtractor(num_objects=cfg.num_objects, debug=cfg.debug).to(device)
-    mean = FeatureExtractorBaseline(num_objects=cfg.num_objects)
+    mean = FeatureExtractorBaseline(num_objects=cfg.num_objects, device=device).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
-    small_mlp = SmallMLP()
+    small_mlp = SmallMLP().to(device)
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
     wandb.log({"batch_size": cfg.batch_size})
@@ -48,7 +48,7 @@ def train(cfg: DictConfig) -> None:
         features: torch.Tensor = feature_extract(images, masks)
         output: torch.Tensor = predictor(features)
         target: torch.Tensor = mean(masks)
-        target = torch.tensor(np.repeat(target[:, np.newaxis, :, :], 5, axis=1))
+        target = target.unsqueeze(1).repeat((1, 5, 1, 1))
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
