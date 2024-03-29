@@ -167,7 +167,7 @@ class DataCollector:
         c = 0
         for mask in indiv_masks:
             # ensure we dont have duplicate masks
-            if c == 0 or max([(torch.bitwise_and(mask, m)).sum().item() for m in good_masks[:c]]) / mask.sum() < 0.8:
+            if c == 0 or max((torch.bitwise_and(mask, m)).sum().item() for m in good_masks[:c]) / mask.sum() < 0.8:
                 good_masks[c] = mask
                 c += 1
         return good_masks
