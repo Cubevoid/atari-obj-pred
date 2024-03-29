@@ -67,17 +67,16 @@ class DataCollector:
             padded_size = (orig_size[0] + 31) // 32 * 32, (orig_size[1] + 31) // 32 * 32
             obs = np.pad(obs, ((0, padded_size[0] - orig_size[0]), (0, padded_size[1] - orig_size[1]), (0, 0)))
             # SAM masks
-            with torch.no_grad(), torch.autocast(device_type=self.device, dtype=torch.float16):
+            with torch.no_grad():# , torch.autocast(device_type=self.device, dtype=torch.float16):
                 # Upscale SAM input
                 upscaled = cv2.resize(obs, (1024, 1024))
                 results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
             if results is None:
                 masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
-                masks = results[0].masks.data.cpu().unsqueeze(0).to(torch.float32)  # (N, H, W)
-                masks = F.interpolate(masks, padded_size, mode="nearest").numpy().astype(bool).squeeze(0)
-                masks = self.filter_and_sort_masks(orig_size, masks)
-                masks = np.pad(masks, ((1, 0), (0, 0), (0, 0)))  # add background "mask"
+                masks = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (N, H, W)
+                masks = F.interpolate(masks, padded_size, mode="nearest").to(bool).squeeze(0)
+                masks = self.filter_and_sort_masks(orig_size, masks).cpu().numpy()
                 num_masks = (masks.sum(-1).sum(-1) != 0).sum()
                 masks_idx = np.arange(num_masks)  # this is used later in the matching
                 masks_center = np.zeros((num_masks, 2))
@@ -98,7 +97,9 @@ class DataCollector:
                 object_types.append(obj.category)
                 object_bounding_boxes.append(np.array(obj.xywh))
                 object_xy.append(obj.xy)
-                last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) else self.episode_object_xy[-1].index(obj.prev_xy)
+                last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) \
+                    or obj.prev_xy not in self.episode_object_xy[-1] \
+                    else self.episode_object_xy[-1].index(obj.prev_xy)
                 object_last_idx.append(last_idx)
             object_bounding_boxes = np.array(object_bounding_boxes)
 
@@ -112,6 +113,7 @@ class DataCollector:
             size_costs = np.abs(object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
             costs = pos_costs + size_costs
             num_objects = len(object_types)
+            log_dir = {"data_collected": counter, "num_objects": num_objects}
             matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))
             while len(masks_idx) > 0 and num_objects > 0:
                 min_pos = np.unravel_index(np.argmin(costs), costs.shape)
@@ -124,7 +126,7 @@ class DataCollector:
             masks = matched_masks.argmax(axis=0).astype(np.uint8)
             self.episode_detected_masks.append(masks)
 
-            wandb.log({"data_collected": counter})
+            wandb.log(log_dir)
             progress_bar.update(1)
             if terminated or truncated:
                 self.store_episode()
@@ -132,7 +134,7 @@ class DataCollector:
                 obs, _ = self.env.reset()
         progress_bar.close()
 
-    def filter_and_sort_masks(self, orig_size: Tuple[int, ...], masks: npt.NDArray) -> npt.NDArray:
+    def filter_and_sort_masks(self, orig_size: Tuple[int, int, int], masks: torch.Tensor) -> torch.Tensor:
         """
         Filter masks for duplicates and sort them by size.
         Args:
@@ -141,9 +143,10 @@ class DataCollector:
         Returns:
             List[npt.NDArray] of HxW binary masks
         """
-        padded_masks = np.zeros(
+        good_masks = torch.zeros(
             (masks.shape[0], orig_size[0], orig_size[1]),
             dtype=bool,
+            device=self.device
         )  # (num_objects, H, W)
         indiv_masks = sorted(
             [masks[i,:orig_size[0],:orig_size[1]] for i in range(masks.shape[0]) if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2],
@@ -153,10 +156,10 @@ class DataCollector:
         c = 0
         for mask in indiv_masks:
             # ensure we dont have duplicate masks
-            if c == 0 or max((np.bitwise_and(mask, m)).sum() for m in padded_masks[:c]) / mask.sum() < 0.8:
-                padded_masks[c] = mask
+            if c == 0 or max((torch.bitwise_and(mask, m)).sum() for m in good_masks[:c]) / mask.sum() < 0.8:
+                good_masks[c] = mask
                 c += 1
-        return padded_masks
+        return good_masks
 
     def store_episode(self) -> None:
         """
