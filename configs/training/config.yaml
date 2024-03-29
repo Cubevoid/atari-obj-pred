@@ -1,4 +1,8 @@
+debug: True
 batch_size: 32
 time_steps: 5
 num_objects: 32
-name: debug
+name: debug-training
+game: Pong
+predictor: transformer
+num_iterations: 1000
