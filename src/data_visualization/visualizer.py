@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np
+from colorsys import hls_to_rgb
 import matplotlib.pyplot as plt
 import torch
 from torch.nn import functional as F
@@ -13,7 +14,18 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from src.data_collection.data_loader import DataLoader
 
 # generate a list of 32 distinct colors for matplotlib
-color_map = [plt.cm.tab20(i) for i in np.linspace(0, 1, 33)]  # type: ignore[attr-defined] # pylint: disable=no-member
+def get_distinct_colors(n):
+    colors = []
+
+    for i in np.arange(0., 360., 360. / n):
+        h = i / 360.
+        l = (50 + np.random.rand() * 10) / 100.
+        s = (90 + np.random.rand() * 10) / 100.
+        colors.append(hls_to_rgb(h, l, s))
+
+    return colors
+# color_map = [plt.cm.Set1(i) for i in np.linspace(0, 1, 33)]  # type: ignore[attr-defined] # pylint: disable=no-member
+color_map = get_distinct_colors(8)
 
 
 class Visualizer:
@@ -92,9 +104,7 @@ class Visualizer:
         if mode in [2, 3, 5]:
             if mode in [2, 5]:
                 frame = np.zeros_like(frame)
-            masks = F.one_hot(torch.Tensor(masks).long(), 33).float()[:, :, 1:].bool().numpy()
-            for i in range(masks.shape[-1]):
-                mask = masks[:, :, i]
+            for i, mask in enumerate(masks):
                 img = np.zeros_like(frame)
                 img[mask == 1] = color_map[i][:3]
                 frame += img * 0.5
