@@ -10,7 +10,7 @@ class SimpleObject:
     def __init__(self, x: int, y: int, w: int, h: int, lx: int, ly: int) -> None:
         self.xywh = (x,y,w,h)
         self.xy = (x,y)
-        self.last_xy = (lx,ly)
+        self.prev_xy = (lx,ly)
         self.category = "Test"
 
 class SimpleTestData(gymnasium.Env):
@@ -64,7 +64,7 @@ class SimpleTestData(gymnasium.Env):
             image = np.ones((image_height, image_width, 3), dtype=np.uint8) * 255
 
             # Calculate the position of the circle
-            for i in range(len(objects)):
+            for i in range(len(objects)):  # pylint: disable=consider-using-enumerate
                 x,y = objects[i]
                 nx, ny = x + speeds[i][0], y + speeds[i][1]
                 if nx < 0 or nx > image_width:
