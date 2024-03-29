@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import os
+import typing
 import cv2
 import numpy as np
 import numpy.typing as npt
@@ -55,7 +56,7 @@ class DataCollector:
         progress_bar.update(self.collected_data)
         obs, _ = self.env.reset()
         counter = 0
-        orig_size = obs.shape[:2]
+        orig_size = typing.cast(Tuple[int,int], obs.shape[:2])
         while self.collected_data < self.num_samples:
             counter += 1
             # Generate game frame
@@ -66,27 +67,8 @@ class DataCollector:
             # Pad the image to be a multiple of 32
             padded_size = (orig_size[0] + 31) // 32 * 32, (orig_size[1] + 31) // 32 * 32
             obs = np.pad(obs, ((0, padded_size[0] - orig_size[0]), (0, padded_size[1] - orig_size[1]), (0, 0)))
-            # SAM masks
-            with torch.no_grad():# , torch.autocast(device_type=self.device, dtype=torch.float16):
-                # Upscale SAM input
-                upscaled = cv2.resize(obs, (1024, 1024))
-                results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
-            if results is None:
-                masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
-            else:
-                masks = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (N, H, W)
-                masks = F.interpolate(masks, padded_size, mode="nearest").to(bool).squeeze(0)
-                masks = self.filter_and_sort_masks(orig_size, masks).cpu().numpy()
-                num_masks = (masks.sum(-1).sum(-1) != 0).sum()
-                masks_idx = np.arange(num_masks)  # this is used later in the matching
-                masks_center = np.zeros((num_masks, 2))
-                masks_size = np.zeros(num_masks)
-                for i in range(num_masks):
-                    mask = masks[i]
-                    y, x = np.where(mask)
-                    masks_center[i, 0] = x.mean()
-                    masks_center[i, 1] = y.mean()
-                    masks_size[i] = len(x)
+
+            masks_idx, masks_center, masks_size, masks = self.get_masks(obs, padded_size, orig_size)
 
             # Ground truth
             object_types = []
@@ -134,7 +116,36 @@ class DataCollector:
                 obs, _ = self.env.reset()
         progress_bar.close()
 
-    def filter_and_sort_masks(self, orig_size: Tuple[int, int, int], masks: torch.Tensor) -> torch.Tensor:
+    def get_masks(self, obs: np.ndarray, padded_size: Tuple[int,int], orig_size: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Calls SAM to get the masks from the image
+        Returns:
+        Tuple of masks_idx, masks_center, masks_size, masks
+        """
+        # SAM masks
+        with torch.no_grad():# , torch.autocast(device_type=self.device, dtype=torch.float16):
+            # Upscale SAM input
+            upscaled = cv2.resize(obs, (1024, 1024))
+            results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
+        if results is None:
+            masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
+        else:
+            masks_t = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (N, H, W)
+            masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
+            masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
+            num_masks = (masks.sum(-1).sum(-1) != 0).sum()
+            masks_idx = np.arange(num_masks)  # this is used later in the matching
+            masks_center = np.zeros((num_masks, 2))
+            masks_size = np.zeros(num_masks)
+            for i in range(num_masks):
+                mask = masks[i]
+                y, x = np.where(mask)
+                masks_center[i, 0] = x.mean()
+                masks_center[i, 1] = y.mean()
+                masks_size[i] = len(x)
+        return masks_idx, masks_center, masks_size, masks
+
+    def filter_and_sort_masks(self, orig_size: Tuple[int, int], masks: torch.Tensor) -> torch.Tensor:
         """
         Filter masks for duplicates and sort them by size.
         Args:
@@ -144,19 +155,19 @@ class DataCollector:
             List[npt.NDArray] of HxW binary masks
         """
         good_masks = torch.zeros(
-            (masks.shape[0], orig_size[0], orig_size[1]),
-            dtype=bool,
+            size=(masks.shape[0], orig_size[0], orig_size[1]),
+            dtype=torch.bool,
             device=self.device
         )  # (num_objects, H, W)
         indiv_masks = sorted(
             [masks[i,:orig_size[0],:orig_size[1]] for i in range(masks.shape[0]) if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2],
-            key=lambda m: m.sum(),
+            key=lambda m: m.sum().item(),
             reverse=True,
         )
         c = 0
         for mask in indiv_masks:
             # ensure we dont have duplicate masks
-            if c == 0 or max((torch.bitwise_and(mask, m)).sum() for m in good_masks[:c]) / mask.sum() < 0.8:
+            if c == 0 or max([(torch.bitwise_and(mask, m)).sum().item() for m in good_masks[:c]]) / mask.sum() < 0.8:
                 good_masks[c] = mask
                 c += 1
         return good_masks

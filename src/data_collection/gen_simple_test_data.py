@@ -7,10 +7,10 @@ import gymnasium
 from gymnasium import spaces
 
 class SimpleObject:
-    def __init__(self, x: int, y: int, w: int, h: int, lx: int, ly: int) -> None:
+    def __init__(self, x: int, y: int, w: int, h: int, prev_x: int, prev_y: int) -> None:
         self.xywh = (x,y,w,h)
         self.xy = (x,y)
-        self.prev_xy = (lx,ly)
+        self.prev_xy = (prev_x,prev_y)
         self.category = "Test"
 
 class SimpleTestData(gymnasium.Env):
@@ -50,7 +50,7 @@ class SimpleTestData(gymnasium.Env):
         image_height = 128
 
         # Set the number of frames in the sequence
-        num_frames = 10
+        num_frames = 100
 
         # Create an empty list to store the frames
         frames = []
@@ -73,7 +73,7 @@ class SimpleTestData(gymnasium.Env):
                     speeds[i][1] *= -1
                 circle_x = nx
                 circle_y = ny
-                self.all_objects.append([SimpleObject(circle_x - 10, circle_y - 10, 10, 10, x, y)])
+                self.all_objects.append([SimpleObject(circle_x - 10, circle_y - 10, 20, 20, x, y)])
 
                 # Draw the circle on the image
                 cv2.circle(image, (circle_x, circle_y), 10, 0, -1)  # type: ignore
