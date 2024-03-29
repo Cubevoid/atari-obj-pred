@@ -2,6 +2,8 @@ import os
 import time
 import typing
 from typing import Any, Dict
+
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 import torch
@@ -14,6 +16,8 @@ from src.data_collection.data_loader import DataLoader
 from src.model.feat_extractor import FeatureExtractor
 from src.model.predictor import Predictor
 from src.model.mlp_predictor import MLPPredictor
+from src.model.feat_extractor_baseline import FeatureExtractorBaseline
+from src.model.small_mlp import SmallMLP
 
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
@@ -23,7 +27,9 @@ def train(cfg: DictConfig) -> None:
 
     data_loader = DataLoader(cfg.game, cfg.num_objects)
     feature_extract = FeatureExtractor(num_objects=cfg.num_objects, debug=cfg.debug).to(device)
+    mean = FeatureExtractorBaseline(num_objects=cfg.num_objects)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
+    small_mlp = SmallMLP()
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
     wandb.log({"batch_size": cfg.batch_size})
@@ -36,10 +42,13 @@ def train(cfg: DictConfig) -> None:
     for i in tqdm(range(cfg.num_iterations)):
         images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps)
         images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
-        target = bboxes[:, :, :, :2]  # [B, T, O, 2]
+        #target = bboxes[:, :, :, :2]  # [B, T, O, 2]
+
         # Run models
         features: torch.Tensor = feature_extract(images, masks)
         output: torch.Tensor = predictor(features)
+        target: torch.Tensor = mean(masks)
+        target = torch.tensor(np.repeat(target[:, np.newaxis, :, :], 5, axis=1))
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
@@ -53,7 +62,7 @@ def train(cfg: DictConfig) -> None:
             tqdm.write(f"loss={loss.item()}, output_mean={output.mean().item()}, std={output.std().item()}")
             tqdm.write(f"target_mean={target.mean().item()} std={target.std().item()}")
             tqdm.write(f"l1 average loss = {l1sum/total}")
-            tqdm.write(f"Predicted: {output[:,:,0]}, Target: {target[:,:,0]}")
+            #tqdm.write(f"Predicted: {output[:,:,0]}, Target: {target[:,:,0]}")
             # tqdm.write(f"Std: {std} {std.shape}")
             # tqdm.write(f"Corr: {corr} {corr.shape}")
         error_dict = {"loss": loss, "error/x": diff[:, :, :, 0].mean(), "error/y": diff[:, :, :, 1].mean()}
