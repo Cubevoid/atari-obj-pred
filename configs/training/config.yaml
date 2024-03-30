@@ -1,7 +1,7 @@
 debug: True
-batch_size: 5
-time_steps: 5
-num_objects: 10
+batch_size: 32
+time_steps: 10
+num_objects: 32
 name: debug-training
 game: Pong
 predictor: transformer
