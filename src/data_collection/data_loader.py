@@ -8,6 +8,7 @@ from hydra.utils import to_absolute_path
 
 from src.data_collection.common import get_data_directory, get_id_from_episode_name, get_length_from_episode_name
 
+
 class DataLoader:
     def __init__(self, game: str, num_obj: int):
         self.dataset_path = get_data_directory(game)
@@ -55,7 +56,7 @@ class DataLoader:
             start = np.random.randint(0, len(frames) - self.history_len - time_steps)
             base = start + self.history_len
             states.append(frames[start:base])
-            obj_bbxs = object_bounding_boxes[base:base+time_steps]  # [T, O, 4]
+            obj_bbxs = object_bounding_boxes[base:base + time_steps]  # [T, O, 4]
             objs = obj_bbxs[0].sum(-1) != 0  # [O]
             orderd_bbxs = np.zeros_like(obj_bbxs)  # [T, O, 4] ordered by the initial object they are tracking
             order = np.arange(objs.sum())  # [o]
@@ -64,7 +65,7 @@ class DataLoader:
                 order = last_idxs[base + t, order]
             object_bounding_boxes_list.append(orderd_bbxs)
             masks.append(detected_masks[base])
-            actions.append(episode_actions[base:base+time_steps])
+            actions.append(episode_actions[base:base + time_steps])
 
         states_tensor = torch.from_numpy(np.array(states))
         states_tensor = states_tensor / 255
@@ -77,11 +78,12 @@ class DataLoader:
         object_bounding_boxes_tensor = object_bounding_boxes_tensor[:, :, :self.num_obj]
 
         states_tensor = states_tensor.reshape(*states_tensor.shape[:1], -1, *states_tensor.shape[3:])
-        states_tensor  = F.interpolate(states_tensor , (128, 128))
-        states_tensor  = states_tensor.reshape((-1, 12, 128, 128))
+        states_tensor = F.interpolate(states_tensor, (128, 128))
+        states_tensor = states_tensor.reshape((-1, 12, 128, 128))
 
-        masks_tensor = torch.from_numpy(np.array(masks))[:, :self.num_obj]
-        masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]  # get rid of background [B, H, W, O]
-        masks_tensor = masks_tensor.permute(0, 3, 1, 2)  # [B, O, H, W]
+        masks_tensor = torch.from_numpy(np.array(masks))
+        masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]
+        masks_tensor = masks_tensor.permute(0, 3, 1, 2)
+        masks_tensor = F.interpolate(masks_tensor, (128, 128))
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
