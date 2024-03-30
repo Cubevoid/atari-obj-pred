@@ -71,19 +71,7 @@ class DataCollector:
             masks_idx, masks_center, masks_size, masks = self.get_masks(obs, padded_size, orig_size)
 
             # Ground truth
-            object_types = []
-            object_bounding_boxes = []
-            object_xy = []
-            object_last_idx = []
-            for obj in self.env.objects:
-                object_types.append(obj.category)
-                object_bounding_boxes.append(np.array(obj.xywh))
-                object_xy.append(obj.xy)
-                last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) \
-                    or obj.prev_xy not in self.episode_object_xy[-1] \
-                    else self.episode_object_xy[-1].index(obj.prev_xy)
-                object_last_idx.append(last_idx)
-            np_object_bounding_boxes = np.array(object_bounding_boxes)
+            np_object_bounding_boxes, object_types, object_xy, object_last_idx = self.get_ground_truth_data()
 
             self.episode_object_types.append(object_types)
             self.episode_object_bounding_boxes.append(np_object_bounding_boxes)
@@ -92,14 +80,14 @@ class DataCollector:
             # we must track the objects between frames
             pos_costs = (np_object_bounding_boxes[:, :2] + np_object_bounding_boxes[:, 2:] / 2)[:, np.newaxis, :] - masks_center[np.newaxis, :, :]
             pos_costs = np.linalg.norm(pos_costs, axis=2)
-            size_costs = np.abs(np_object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
+            size_costs = np.sqrt(np.abs(np_object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :]))
             costs = pos_costs + size_costs
             num_objects = len(object_types)
             log_dir = {"data_collected": counter, "num_objects": num_objects}
-            matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))
+            matched_masks = np.zeros((num_objects + 1, masks.shape[1], masks.shape[2]))
             while len(masks_idx) > 0 and num_objects > 0:
                 min_pos = np.unravel_index(np.argmin(costs), costs.shape)
-                matched_masks[min_pos[0]] = masks[min_pos[1]]
+                matched_masks[min_pos[0] + 1] = masks[min_pos[1]]
                 costs[min_pos[0]] = np.inf
                 costs[:, min_pos[1]] = np.inf
                 num_objects -= 1
@@ -115,6 +103,28 @@ class DataCollector:
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
         progress_bar.close()
+
+    def get_ground_truth_data(self) -> Tuple[npt.NDArray, List[str], List[Tuple[int,int]], List[int]]:
+        """
+        Extract the ground truth OCAtari Information from the environment
+        """
+        object_types = []
+        object_bounding_boxes = []
+        object_xy = []
+        object_last_idx = []
+        for obj in self.env.objects:
+            x, y, w, h = obj.xywh
+            if (x == 0 and y == 0) or (w < 0) or (h < 0):
+                continue
+            object_types.append(obj.category)
+            object_bounding_boxes.append(np.array(obj.xywh))
+            object_xy.append(obj.xy)
+            last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) \
+                or obj.prev_xy not in self.episode_object_xy[-1] \
+                else self.episode_object_xy[-1].index(obj.prev_xy)
+            object_last_idx.append(last_idx)
+        np_object_bounding_boxes = np.array(object_bounding_boxes)
+        return np_object_bounding_boxes, object_types, object_xy, object_last_idx
 
     def get_masks(self, obs: np.ndarray, padded_size: Tuple[int,int], orig_size: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
