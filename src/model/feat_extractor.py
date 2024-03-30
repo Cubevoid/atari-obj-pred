@@ -32,9 +32,8 @@ class FeatureExtractor(torch.nn.Module):
     Performs CNN-based feature extraction and ROI pooling.
     """
 
-    def __init__(self, input_size: int = 128, num_frames: int = 4, num_objects: int = 32, debug: bool = False):
+    def __init__(self, input_size: int = 128, num_frames: int = 4, num_objects: int = 32):
         super().__init__()
-        self.debug = debug
         self.num_frames = num_frames
         self.num_objects = num_objects
         self.input_size = input_size
@@ -70,9 +69,8 @@ class FeatureExtractor(torch.nn.Module):
         Returns:
             (B, num_objects, 128) feature vector
         """
-        if self.debug:
-            assert len(images.shape) == 4, f"Expected 4D tensor, got {images.shape}"
-            assert images.shape[-1] == images.shape[-2] == self.input_size, f"Expected input size {self.input_size}, got {images.shape}"
+        assert len(images.shape) == 4, f"Expected 4D tensor, got {images.shape}"
+        assert images.shape[-1] == images.shape[-2] == self.input_size, f"Expected input size {self.input_size}, got {images.shape}"
         images = self.conv(images)  # [input_size/2, input_size/2]
         images = self.position_embed(images)
         objects = self.roi_pool(images, rois)
