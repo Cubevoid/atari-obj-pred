@@ -93,6 +93,15 @@ def train(cfg: DictConfig) -> None:
         error_dict |= {"std_mean": std.mean(), "std_std": std.std(), "corr_mean": corr.mean(), "corr_std": corr.std()}
         error_dict |= {"max_loss": max_loss, "average_movement": average_movement, "l1move": l1_average_with_movement}
         for t in range(cfg.time_steps):
+            if t != 0:
+                movement_mask = target[:, t-1, :, :] - target[:, 0, :, :] != 0
+                average_movement = total_movement / torch.sum(movement_mask)
+                l1_average_with_movement = torch.sum(torch.abs(torch.squeeze(target[:, cfg.time_steps-1, :, :], dim=1)[movement_mask] -
+                                                               torch.squeeze(output[:, cfg.time_steps-1, :, :], dim= 1)[movement_mask]))
+                l1_average_with_movement /= torch.sum(movement_mask)
+                error_dict[f"average_movement/time_{t}"] = average_movement
+                error_dict[f"l1_movement_average/time_{t}"] = l1_average_with_movement
+
             error_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
         error_dict["l1average"] = l1sum / total
         wandb.log(error_dict)
