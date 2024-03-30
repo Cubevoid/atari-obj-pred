@@ -6,3 +6,4 @@ name: debug-training
 game: Pong
 predictor: transformer
 num_iterations: 1000
+ground_truth_masks: True
