@@ -76,6 +76,9 @@ class DataCollector:
             object_xy = []
             object_last_idx = []
             for obj in self.env.objects:
+                x, y, w, h = obj.xywh
+                if (x == 0 and y == 0) or (w < 0) or (h < 0):
+                    continue
                 object_types.append(obj.category)
                 object_bounding_boxes.append(np.array(obj.xywh))
                 object_xy.append(obj.xy)
@@ -92,7 +95,7 @@ class DataCollector:
             # we must track the objects between frames
             pos_costs = (np_object_bounding_boxes[:, :2] + np_object_bounding_boxes[:, 2:] / 2)[:, np.newaxis, :] - masks_center[np.newaxis, :, :]
             pos_costs = np.linalg.norm(pos_costs, axis=2)
-            size_costs = np.abs(np_object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :])
+            size_costs = np.sqrt(np.abs(np_object_bounding_boxes[:, 2:].prod(axis=1)[:, np.newaxis] - masks_size[np.newaxis, :]))
             costs = pos_costs + size_costs
             num_objects = len(object_types)
             log_dir = {"data_collected": counter, "num_objects": num_objects}
@@ -110,7 +113,7 @@ class DataCollector:
 
             wandb.log(log_dir)
             progress_bar.update(1)
-            if terminated or truncated:
+            if terminated or truncated or counter == 400:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
