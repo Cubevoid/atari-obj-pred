@@ -1,9 +1,9 @@
 debug: True
-batch_size: 32
+batch_size: 5
 time_steps: 5
-num_objects: 32
+num_objects: 10
 name: debug-training
 game: Pong
 predictor: transformer
 num_iterations: 1000
-ground_truth_masks: True
+ground_truth_masks: False
