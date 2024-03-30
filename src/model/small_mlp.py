@@ -10,8 +10,8 @@ class SmallMLP(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, output_size)
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
 
-        output = F.relu(self.fc1(X))
+        output = F.relu(self.fc1(x))
         output = F.relu(self.fc2(output))
         return output

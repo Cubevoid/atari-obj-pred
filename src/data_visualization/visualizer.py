@@ -82,7 +82,7 @@ class Visualizer:
 
     def update_surface(self, _: Any) -> None:
         episode_idx = int(self.data_slider.get()) - 1
-        frame, types, boxes, masks, actions = self.data_loader.episode_data[int(self.episode_slider.get()) - 1]
+        frame, types, boxes, masks, actions, _ = self.data_loader.episode_data[int(self.episode_slider.get()) - 1]
         frame, types, boxes, masks, actions = frame[episode_idx], types[episode_idx], boxes[episode_idx], masks[episode_idx], actions[episode_idx]
         frame = frame.astype(np.float32) / 255.
         mode = self.radio_var.get()

@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import torch.nn.functional as F
 
 class FeatureExtractorBaseline(nn.Module):
     def __init__(self, input_size: int = 128, num_objects: int = 32, num_features: int = 128):
