@@ -99,10 +99,10 @@ class DataCollector:
             costs = pos_costs + size_costs
             num_objects = len(object_types)
             log_dir = {"data_collected": counter, "num_objects": num_objects}
-            matched_masks = np.zeros((num_objects, masks.shape[1], masks.shape[2]))
+            matched_masks = np.zeros((num_objects + 1, masks.shape[1], masks.shape[2]))
             while len(masks_idx) > 0 and num_objects > 0:
                 min_pos = np.unravel_index(np.argmin(costs), costs.shape)
-                matched_masks[min_pos[0]] = masks[min_pos[1]]
+                matched_masks[min_pos[0] + 1] = masks[min_pos[1]]
                 costs[min_pos[0]] = np.inf
                 costs[:, min_pos[1]] = np.inf
                 num_objects -= 1
@@ -113,7 +113,7 @@ class DataCollector:
 
             wandb.log(log_dir)
             progress_bar.update(1)
-            if terminated or truncated or counter == 400:
+            if terminated or truncated or counter == 100:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
