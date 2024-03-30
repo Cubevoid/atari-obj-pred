@@ -6,8 +6,6 @@ import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
-from torch.nn import functional as F
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from src.data_collection.data_loader import DataLoader
