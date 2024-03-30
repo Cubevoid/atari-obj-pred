@@ -1,5 +1,7 @@
 from typing import Any
 import tkinter
+import torch
+import torch.nn.functional as F
 import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np
@@ -82,8 +84,9 @@ class Visualizer:
 
     def update_surface(self, _: Any) -> None:
         episode_idx = int(self.data_slider.get()) - 1
-        frame, types, boxes, masks, actions, _ = self.data_loader.episode_data[int(self.episode_slider.get()) - 1]
+        frame, types, boxes, masks, actions, _ = self.data_loader.episode_data[int(self.episode_slider.get()) - 1]  # type: ignore
         frame, types, boxes, masks, actions = frame[episode_idx], types[episode_idx], boxes[episode_idx], masks[episode_idx], actions[episode_idx]
+        masks = F.one_hot(torch.from_numpy(masks).long()).movedim(-1,0).numpy()[1:]  # the 0 mask is the background [O, W, H]
         frame = frame.astype(np.float32) / 255.
         mode = self.radio_var.get()
         if mode in [2, 3, 5]:
@@ -93,7 +96,7 @@ class Visualizer:
             for i in range(masks.shape[-1]):
                 mask = masks[:, :, i]
                 img = np.zeros_like(frame)
-                img[mask] = color_map[i][:3]
+                img[mask == 1] = color_map[i][:3]
                 frame += img * 0.5
         frame = frame.clip(0, 1)
         if mode in [4, 5]:
