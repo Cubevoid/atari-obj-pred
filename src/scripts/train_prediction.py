@@ -26,7 +26,7 @@ def train(cfg: DictConfig) -> None:
     use_mlp = cfg.predictor == "mlp"
 
     data_loader = DataLoader(cfg.game, cfg.num_objects)
-    feature_extract = FeatureExtractor(num_objects=cfg.num_objects, debug=cfg.debug).to(device)
+    feature_extract = FeatureExtractor(num_objects=cfg.num_objects).to(device)
     mean = FeatureExtractorBaseline(num_objects=cfg.num_objects, device=device).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
     small_mlp = SmallMLP().to(device)
@@ -62,20 +62,36 @@ def train(cfg: DictConfig) -> None:
         loss.backward()
         optimizer.step()
         diff = torch.pow(output - target, 2)
+        max_loss = torch.max(torch.abs((output - target)))
+        total_movement = torch.sum(torch.abs((target[:, cfg.time_steps-1, :, :] - target[:, 0, :, :])))
+        movement_mask = target[:, cfg.time_steps-1, :, :] - target[:, 0, :, :] != 0
+        average_movement = total_movement / torch.sum(movement_mask)
         nonzero_feats = features[features.sum(dim=-1) > 0]
         std, corr = nonzero_feats.std(dim=0), torch.corrcoef(nonzero_feats)
+
+        l1_average_with_movement = torch.sum(torch.abs(torch.squeeze(target[:, cfg.time_steps-1, :, :], dim=1)[movement_mask] -
+                                                       torch.squeeze(output[:, cfg.time_steps-1, :, :], dim= 1)[movement_mask]))
+        l1_average_with_movement /= torch.sum(movement_mask)
+
         if cfg.debug and i % 50 == 0:
             mask = target != 0
+
             l1sum = torch.sum(torch.abs(target[mask] - output[mask]))
+            med_l1 = torch.median(torch.abs(target[mask]-output[mask]))
             total = torch.sum(mask)
             tqdm.write(f"loss={loss.item()}, output_mean={output.mean().item()}, std={output.std().item()}")
             tqdm.write(f"target_mean={target.mean().item()} std={target.std().item()}")
             tqdm.write(f"l1 average loss = {l1sum / total}")
+            tqdm.write(f"maximum loss = {max_loss.item()}")
+            tqdm.write(f"median loss = {med_l1}")
+            tqdm.write(f"average movement = {average_movement.item()}")
+            tqdm.write(f"average l1 loss on last time step where object moved = {l1_average_with_movement.item()}")
             # tqdm.write(f"Predicted: {output[:,:,0]}, Target: {target[:,:,0]}")
             # tqdm.write(f"Std: {std} {std.shape}")
             # tqdm.write(f"Corr: {corr} {corr.shape}")
         error_dict = {"loss": loss, "error/x": diff[:, :, :, 0].mean(), "error/y": diff[:, :, :, 1].mean()}
         error_dict |= {"std_mean": std.mean(), "std_std": std.std(), "corr_mean": corr.mean(), "corr_std": corr.std()}
+        error_dict |= {"max_loss": max_loss, "average_movement": average_movement, "l1move": l1_average_with_movement}
         for t in range(cfg.time_steps):
             error_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
         error_dict["l1average"] = l1sum / total
