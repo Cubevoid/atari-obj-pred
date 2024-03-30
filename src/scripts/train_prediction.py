@@ -41,8 +41,7 @@ def train(cfg: DictConfig) -> None:
     optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
 
     for i in tqdm(range(cfg.num_iterations)):
-        images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps)
-        images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
+        images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps, device)
         if cfg.ground_truth_masks:
             bbox_ints = bboxes * 128
             bbox_ints = bbox_ints.int()
@@ -59,6 +58,7 @@ def train(cfg: DictConfig) -> None:
         # target: torch.Tensor = mean(masks)
         # target = target.unsqueeze(1).repeat((1, 5, 1, 1))
         loss: torch.Tensor = criterion(output, target)
+        # loss = torch.pow((output - target), 4).mean()
         loss.backward()
         optimizer.step()
         diff = torch.pow(output - target, 2)
