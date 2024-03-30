@@ -1,20 +1,18 @@
-from typing import Any
+from typing import Any, List, Tuple
 import tkinter
+from colorsys import hls_to_rgb
 import torch
 import torch.nn.functional as F
 import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np
-from colorsys import hls_to_rgb
 import matplotlib.pyplot as plt
-import torch
-from torch.nn import functional as F
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from src.data_collection.data_loader import DataLoader
 
 # generate a list of 32 distinct colors for matplotlib
-def get_distinct_colors(n):
+def get_distinct_colors(n: int) -> List[Tuple[float, float, float]]:
     colors = []
 
     for i in np.arange(0., 360., 360. / n):
@@ -85,6 +83,7 @@ class Visualizer:
         self.update_data_slider(None)
         # add event handler to episode slider to update max number of data slider
         self.episode_slider.bind("<ButtonRelease-1>", self.update_data_slider)
+        self.update_surface(None)
         self.root.mainloop()
 
     def set_display_mode(self) -> None:
@@ -108,6 +107,11 @@ class Visualizer:
                 img = np.zeros_like(frame)
                 img[mask == 1] = color_map[i][:3]
                 frame += img * 0.5
+                x, y, _, _ = boxes[i]
+                if mode == 5:
+                    mask_ys, mask_xs = np.nonzero(mask == 1)
+                    if mask_xs.size > 0:
+                        frame = cv2.arrowedLine(frame, (int(mask_xs.mean()), int(mask_ys.mean())), (x,y), color_map[i], 1)  # pylint: disable=no-member
         frame = frame.clip(0, 1)
         if mode in [4, 5]:
             for i, box in enumerate(boxes):
