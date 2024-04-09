@@ -40,7 +40,7 @@ class Visualizer:
         self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
         self.feature_extractor.load_state_dict(feature_extractor_state)
         predictor_state = torch.load("models/trained/Pong/1711831906_transformer_predictor.pth", map_location='cpu')
-        self.predictor = Predictor(num_layers=1)
+        self.predictor = Predictor(num_layers=1, log=False)
         self.predictor.load_state_dict(predictor_state)
 
         ctk.set_appearance_mode("dark")
@@ -115,15 +115,19 @@ class Visualizer:
         # visualize predictions
         if self.predictor is not None:
             frame = frame * 0.5
+            m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(5, "cpu", [frame_idx])
+            m_bbxs = m_bbxs[:, :, :, :2]
             with torch.no_grad():
-                frame_tensor = torch.from_numpy(orig_img).permute(2, 0, 1).unsqueeze(0).float()
-                masks_tensor = torch.from_numpy(masks).unsqueeze(0).float()
-                features = self.feature_extractor(frame_tensor, masks_tensor)
+                features = self.feature_extractor(m_frame, m_masks)
                 predictions = self.predictor(features)
-                for i, prediction in enumerate(predictions[0]):
-                    x, y = prediction
-                    if x != 0 or y != 0:
-                        frame = cv2.circle(frame, (int(x), int(y)), 2, color_map[i], 2)
+                for t_pred in predictions[0]:
+                    for i, prediction in enumerate(t_pred):
+                        x, y = prediction[0] * 210, prediction[1] * 160
+                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+                for t_pred in m_bbxs[0]:
+                    for i, prediction in enumerate(t_pred):
+                        x, y = prediction[0] * 210, prediction[1] * 160
+                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
 
         self.ax.imshow(frame)
         self.ax.axis("off")
