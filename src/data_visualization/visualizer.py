@@ -33,11 +33,11 @@ class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
         self.data_loader = DataLoader(cfg.game, cfg.num_objects)
 
-        feature_extractor_state = torch.load("models/trained/1711831906_feat_extract.pth")
+        feature_extractor_state = torch.load("models/trained/Pong/1711831906_feat_extract.pth", map_location='cpu')
         self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
         self.feature_extractor.load_state_dict(feature_extractor_state)
-        predictor_state = torch.load("models/trained/1711831906_transformer_predictor.pth")
-        self.predictor = Predictor()
+        predictor_state = torch.load("models/trained/Pong/1711831906_transformer_predictor.pth", map_location='cpu')
+        self.predictor = Predictor(num_layers=1)
         self.predictor.load_state_dict(predictor_state)
 
         ctk.set_appearance_mode("dark")
