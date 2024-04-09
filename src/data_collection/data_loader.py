@@ -52,20 +52,12 @@ class DataLoader:
         masks: List[npt.NDArray] = []
         actions = []
         for episode in episodes:
-            frames, _, object_bounding_boxes, detected_masks, episode_actions, last_idxs = self.episode_data[episode]
-            start = np.random.randint(0, len(frames) - self.history_len - time_steps)
-            base = start + self.history_len
-            states.append(frames[start:base])
-            obj_bbxs = object_bounding_boxes[base:base + time_steps]  # [T, O, 4]
-            objs = obj_bbxs[0].sum(-1) != 0  # [O]
-            orderd_bbxs = np.zeros_like(obj_bbxs)  # [T, O, 4] ordered by the initial object they are tracking
-            order = np.arange(objs.sum())  # [o]
-            for t in range(time_steps):
-                orderd_bbxs[t, order] = obj_bbxs[t, objs]
-                order = last_idxs[base + t, order]
+            stacked_state, orderd_bbxs, cur_mask, action = self.get_step(episode, time_steps)
+
+            states.append(stacked_state)
             object_bounding_boxes_list.append(orderd_bbxs)
-            masks.append(detected_masks[base])
-            actions.append(episode_actions[base:base + time_steps])
+            masks.append(cur_mask)
+            actions.append(action)
 
         states_tensor = torch.from_numpy(np.array(states)).to(device)
         states_tensor = states_tensor / 255
@@ -87,3 +79,27 @@ class DataLoader:
         masks_tensor = F.interpolate(masks_tensor, (128, 128))
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
+
+
+    def get_step(self, episode: int, time_steps: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Get the frame from the episode
+        Args:
+        episode: Episode number
+        Returns:
+        Frame as numpy array, bounding boxes, current FastSAM masks, Action
+        """
+        frames, _, object_bounding_boxes, detected_masks, episode_actions, last_idxs = self.episode_data[episode]
+        start = np.random.randint(0, len(frames) - self.history_len - time_steps)
+        base = start + self.history_len
+        obj_bbxs = object_bounding_boxes[base:base + time_steps]  # [T, O, 4]
+        objs = obj_bbxs[0].sum(-1) != 0  # [O]
+        orderd_bbxs = np.zeros_like(obj_bbxs)  # [T, O, 4] ordered by the initial object they are tracking
+        order = np.arange(objs.sum())  # [o]
+        for t in range(time_steps):
+            orderd_bbxs[t, order] = obj_bbxs[t, objs]
+            order = last_idxs[base + t, order]
+        stacked_state = frames[start:base]
+        cur_mask = detected_masks[base]
+        action = episode_actions[base:base + time_steps]
+        return stacked_state, orderd_bbxs, cur_mask, action
