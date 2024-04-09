@@ -3,9 +3,12 @@ defaults:
 
 debug: True
 batch_size: 32
-time_steps: 5
-num_objects: 32
+time_steps: 10
+num_objects: 8
 name: debug-training
 game: Pong
 predictor: transformer
 num_iterations: 1000
+ground_truth_masks: false
+
+save_models: false

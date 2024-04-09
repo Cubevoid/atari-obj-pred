@@ -1,6 +1,7 @@
 from typing import Any, List, Tuple
 import tkinter
 from colorsys import hls_to_rgb
+from omegaconf import DictConfig
 import torch
 import torch.nn.functional as F
 import customtkinter as ctk  # type: ignore
@@ -10,6 +11,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from src.data_collection.data_loader import DataLoader
+from src.model.feat_extractor import FeatureExtractor
+from src.model.predictor import Predictor
 
 
 # generate a list of 32 distinct colors for matplotlib
@@ -30,8 +33,15 @@ color_map = get_distinct_colors(8)
 
 
 class Visualizer:
-    def __init__(self, game: str) -> None:
-        self.data_loader = DataLoader(game, 32)
+    def __init__(self, cfg: DictConfig) -> None:
+        self.data_loader = DataLoader(cfg.game, cfg.num_objects)
+
+        feature_extractor_state = torch.load("models/trained/1711831906_feat_extract.pth")
+        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
+        self.feature_extractor.load_state_dict(feature_extractor_state)
+        predictor_state = torch.load("models/trained/1711831906_transformer_predictor.pth")
+        self.predictor = Predictor()
+        self.predictor.load_state_dict(predictor_state)
 
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
@@ -77,12 +87,11 @@ class Visualizer:
     def update_surface(self, _: Any) -> None:
         frame_idx = int(self.data_slider.get()) - 1
         frame = self.data_loader.frames[frame_idx]
-        # types = self.data_loader.object_types[frame_idx]
         boxes = self.data_loader.object_bounding_boxes[frame_idx]
         masks = self.data_loader.detected_masks[frame_idx]
-        # actions = self.data_loader.actions[frame_idx]
         masks = F.one_hot(torch.from_numpy(masks).long()).movedim(-1, 0).numpy()[1:]  # the 0 mask is the background [O, W, H]
         frame = frame.astype(np.float32) / 255.0
+        orig_img = np.array(frame)
         mode = self.radio_var.get()
         if mode in [2, 3, 5]:
             if mode in [2, 5]:
@@ -101,7 +110,21 @@ class Visualizer:
             for i, box in enumerate(boxes):
                 x, y, w, h = box
                 if x != 0 or y != 0:
-                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color_map[i], 1)  # pylint: disable=no-member
+                    frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
+
+        # visualize predictions
+        if self.predictor is not None:
+            frame = frame * 0.5
+            with torch.no_grad():
+                frame_tensor = torch.from_numpy(orig_img).permute(2, 0, 1).unsqueeze(0).float()
+                masks_tensor = torch.from_numpy(masks).unsqueeze(0).float()
+                features = self.feature_extractor(frame_tensor, masks_tensor)
+                predictions = self.predictor(features)
+                for i, prediction in enumerate(predictions[0]):
+                    x, y = prediction
+                    if x != 0 or y != 0:
+                        frame = cv2.circle(frame, (int(x), int(y)), 2, color_map[i], 2)
+
         self.ax.imshow(frame)
         self.ax.axis("off")
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)

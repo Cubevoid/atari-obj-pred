@@ -18,59 +18,103 @@ from src.model.mlp_predictor import MLPPredictor
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
 def train(cfg: DictConfig) -> None:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     use_mlp = cfg.predictor == "mlp"
 
     data_loader = DataLoader(cfg.game, cfg.num_objects)
-    feature_extract = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
+    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
 
-    wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
+    wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game,
+               config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
     wandb.log({"batch_size": cfg.batch_size})
-    wandb.watch(feature_extract, log="gradients", log_freq=100, idx=1)
-    wandb.watch(predictor, log="gradients", log_freq=100, idx=2)
+    wandb.watch(feature_extractor, log=None, log_freq=100, idx=1)
+    wandb.watch(predictor, log=None, log_freq=100, idx=2)
 
     criterion = nn.MSELoss().to(device)
-    optimizer = torch.optim.Adam(list(feature_extract.parameters()) + list(predictor.parameters()), lr=1e-3)
+    optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(predictor.parameters()), lr=1e-3)
 
     for i in tqdm(range(cfg.num_iterations)):
-        images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps)
-        images, bboxes, masks = images.to(device), bboxes.to(device), masks.to(device)
+        images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps, device)
+        if cfg.ground_truth_masks:
+            masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
+
         target = bboxes[:, :, :, :2]  # [B, T, O, 2]
 
         # Run models
-        features: torch.Tensor = feature_extract(images, masks)
+        features: torch.Tensor = feature_extractor(images, masks)
         output: torch.Tensor = predictor(features)
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
-        diff = torch.pow(output - target, 2)
-        nonzero_feats = features[features.sum(dim=-1) > 0]
-        std, corr = nonzero_feats.std(dim=0), torch.corrcoef(nonzero_feats)
+
+        log_dict = eval_metrics(cfg, features, target, output, loss)
+
         if cfg.debug and i % 50 == 0:
-            mask = target != 0
-            l1sum = torch.sum(torch.abs(target[mask] - output[mask]))
-            total = torch.sum(mask)
             tqdm.write(f"loss={loss.item()}, output_mean={output.mean().item()}, std={output.std().item()}")
             tqdm.write(f"target_mean={target.mean().item()} std={target.std().item()}")
-            tqdm.write(f"l1 average loss = {l1sum/total}")
+            tqdm.write(f"l1 average loss = {log_dict['avg_l1']}")
+            tqdm.write(f"maximum loss = {log_dict['max_loss']}")
+            tqdm.write(f"median loss = {log_dict['med_l1']}")
+            tqdm.write(f"average movement = {log_dict['average_movement']}")
+            tqdm.write(f"average l1 loss on last time step where object moved = {log_dict['l1_average_with_movement']}")
             # tqdm.write(f"Predicted: {output[:,:,0]}, Target: {target[:,:,0]}")
             # tqdm.write(f"Std: {std} {std.shape}")
             # tqdm.write(f"Corr: {corr} {corr.shape}")
-        error_dict = {"loss": loss, "error/x": diff[:, :, :, 0].mean(), "error/y": diff[:, :, :, 1].mean()}
-        error_dict |= {"std_mean": std.mean(), "std_std": std.std(), "corr_mean": corr.mean(), "corr_std": corr.std()}
-        for t in range(cfg.time_steps):
-            error_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
-        error_dict["l1average"] = l1sum / total
-        wandb.log(error_dict)
+        wandb.log(log_dict)
         optimizer.zero_grad()
 
-    # save trained model to disk
+    if cfg.save_models:
+        # save trained model to disk
+        save_models(cfg.game, feature_extractor, predictor)
+
+def eval_metrics(cfg: DictConfig, features: torch.Tensor, target: torch.Tensor, output: torch.Tensor, loss: torch.Tensor) -> Dict[str, Any]:
+    mask = target != 0
+    diff = torch.pow(output - target, 2)
+    max_loss = torch.max(torch.abs((output - target))).item()
+    total_movement = torch.sum(torch.abs((target[:, cfg.time_steps-1, :, :] - target[:, 0, :, :])))
+    movement_mask = target[:, cfg.time_steps-1, :, :] - target[:, 0, :, :] != 0
+    average_movement = total_movement / torch.sum(movement_mask)
+    nonzero_feats = features[features.sum(dim=-1) > 0]
+    std, corr = nonzero_feats.std(dim=0), torch.corrcoef(nonzero_feats)
+    log_dict: Dict[str, Any] = {"loss": loss, "error/x": diff[:, :, :, 0].mean(), "error/y": diff[:, :, :, 1].mean()}
+    log_dict["l1_average_with_movement"] = (torch.sum(torch.abs(torch.squeeze(target[:, cfg.time_steps-1, :, :], dim=1)[movement_mask] -
+                                                       torch.squeeze(output[:, cfg.time_steps-1, :, :], dim= 1)[movement_mask]))
+                                            / torch.sum(movement_mask)).item()
+
+    log_dict["avg_l1"] = torch.sum(torch.abs(target[mask] - output[mask])) / torch.sum(mask)
+    log_dict["med_l1"] = torch.median(torch.abs(target[mask] - output[mask]))
+    log_dict |= {"std_mean": std.mean(), "std_std": std.std(), "corr_mean": corr.mean(), "corr_std": corr.std()}
+    log_dict |= {"max_loss": max_loss, "average_movement": average_movement}
+    for t in range(cfg.time_steps):
+        if t != 0:
+            movement_mask = target[:, t-1, :, :] - target[:, 0, :, :] != 0
+            total_movement = torch.sum(torch.abs((target[:, t, :, :] - target[:, 0, :, :])))
+            log_dict[f"average_movement/time_{t}"] = total_movement / torch.sum(movement_mask)
+            log_dict[f"l1_movement_average/time_{t}"] = torch.sum(torch.abs(torch.squeeze(target[:, t, :, :], dim=1)[movement_mask] -
+                                                               torch.squeeze(output[:, t, :, :], dim= 1)[movement_mask])) / torch.sum(movement_mask)
+        log_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
+    return log_dict
+
+def save_models(game: str, feature_extractor: nn.Module, predictor: nn.Module) -> None:
+    """
+    Save the models to the disk
+    """
     unix_time = int(time.time())
-    os.makedirs(to_absolute_path(f"./models/trained/{cfg.game}"), exist_ok=True)
-    torch.save(feature_extract.state_dict(), to_absolute_path(f"./models/trained/{cfg.game}/{unix_time}_feat_extract.pth"))
-    model_name = "mlp_predictor" if use_mlp else "transformer_predictor"
-    torch.save(predictor.state_dict(), to_absolute_path(f"./models/trained/{cfg.game}/{unix_time}_{model_name}.pth"))
+    os.makedirs(to_absolute_path(f"./models/trained/{game}"), exist_ok=True)
+    torch.save(feature_extractor.state_dict(),
+               to_absolute_path(f"./models/trained/{game}/{unix_time}_feat_extract.pth"))
+    torch.save(predictor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_{type(predictor).__name__}.pth"))
+
+def get_ground_truth_masks(bboxes: torch.Tensor, mask_size: torch.Size, device: str) -> torch.Tensor:
+    bbox_ints = bboxes * 128
+    bbox_ints = bbox_ints.int()
+    masks = torch.zeros(mask_size, device=device)
+    for j in range(len(masks)):  # pylint: disable=consider-using-enumerate
+        for k in range(len(masks[j])):
+            masks[j, k, int(bbox_ints[j][0][k][0]): int(bbox_ints[j][0][k][0] + bbox_ints[j][0][k][2]),
+                  int(bbox_ints[j][0][k][1]): int(bbox_ints[j][0][k][1] + bbox_ints[j][0][k][3])] = 1
+    return masks
 
 
 if __name__ == "__main__":

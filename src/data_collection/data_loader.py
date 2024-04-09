@@ -54,7 +54,7 @@ class DataLoader:
         self.actions = np.concatenate(actions, axis=0)
         self.last_idx = np.concatenate(last_idx, axis=0)
 
-    def sample(self, batch_size: int, time_steps: int, data_type: str = "train") -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def sample(self, batch_size: int, time_steps: int, device: str, data_type: str = "train") -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Sample a batch of states from episodes
         Args:
@@ -98,21 +98,21 @@ class DataLoader:
             masks.append(mask)
             actions.append(action)
 
-        states_tensor = torch.from_numpy(np.array(states))
+        states_tensor = torch.from_numpy(np.array(states)).to(device)
         states_tensor = states_tensor / 255
         states_tensor = states_tensor.permute(0, 1, 4, 2, 3)  # [B, T, C, H, W]
-        object_bounding_boxes_tensor = torch.from_numpy(np.array(object_bounding_boxes_list))
+        object_bounding_boxes_tensor = torch.from_numpy(np.array(object_bounding_boxes_list)).to(device)
         object_bounding_boxes_tensor = object_bounding_boxes_tensor.float()
         w = states_tensor.shape[-2]
         h = states_tensor.shape[-1]
-        object_bounding_boxes_tensor /= torch.Tensor([h, w, h, w]).float()
+        object_bounding_boxes_tensor /= torch.Tensor([h, w, h, w]).to(device).float()
         object_bounding_boxes_tensor = object_bounding_boxes_tensor[:, :, : self.num_obj]
 
         states_tensor = states_tensor.reshape(*states_tensor.shape[:1], -1, *states_tensor.shape[3:])
         states_tensor = F.interpolate(states_tensor, (128, 128))
         states_tensor = states_tensor.reshape((-1, 12, 128, 128))
 
-        masks_tensor = torch.from_numpy(np.array(masks))
+        masks_tensor = torch.from_numpy(np.array(masks)).to(device)
         masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]
         masks_tensor = masks_tensor.permute(0, 3, 1, 2)
         masks_tensor = F.interpolate(masks_tensor, (128, 128))
