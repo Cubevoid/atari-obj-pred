@@ -60,17 +60,23 @@ class Visualizer:
             command=self.update_surface,
         )
 
-        self.radio_var = tkinter.IntVar(value=1)
-        radiobutton_1 = ctk.CTkRadioButton(self.root, text="Image", command=self.set_display_mode, variable=self.radio_var, value=1)
+        self.display_type = tkinter.IntVar(value=1)
+        radiobutton_1 = ctk.CTkRadioButton(self.root, text="Image", command=self.set_display_mode, variable=self.display_type, value=1)
         radiobutton_1.place(relx=0.025, rely=0.1)
-        radiobutton_2 = ctk.CTkRadioButton(self.root, text="SAM Masks", command=self.set_display_mode, variable=self.radio_var, value=2)
+        radiobutton_2 = ctk.CTkRadioButton(self.root, text="SAM Masks", command=self.set_display_mode, variable=self.display_type, value=2)
         radiobutton_2.place(relx=0.025, rely=0.15)
-        radiobutton_3 = ctk.CTkRadioButton(self.root, text="SAM Masks + Image", command=self.set_display_mode, variable=self.radio_var, value=3)
+        radiobutton_3 = ctk.CTkRadioButton(self.root, text="SAM Masks + Image", command=self.set_display_mode, variable=self.display_type, value=3)
         radiobutton_3.place(relx=0.025, rely=0.2)
-        radiobutton_4 = ctk.CTkRadioButton(self.root, text="Groundtruth", command=self.set_display_mode, variable=self.radio_var, value=4)
+        radiobutton_4 = ctk.CTkRadioButton(self.root, text="Groundtruth", command=self.set_display_mode, variable=self.display_type, value=4)
         radiobutton_4.place(relx=0.025, rely=0.25)
-        radiobutton_5 = ctk.CTkRadioButton(self.root, text="SAM Mask + Groundtruth", command=self.set_display_mode, variable=self.radio_var, value=5)
+        radiobutton_5 = ctk.CTkRadioButton(self.root, text="SAM Mask + Groundtruth", command=self.set_display_mode, variable=self.display_type, value=5)
         radiobutton_5.place(relx=0.025, rely=0.3)
+
+        self.show_prediction = tkinter.IntVar(value=0)
+        radiobutton_1 = ctk.CTkRadioButton(self.root, text="No Prediction", command=self.set_display_mode, variable=self.show_prediction, value=0)
+        radiobutton_1.place(relx=0.025, rely=0.4)
+        radiobutton_2 = ctk.CTkRadioButton(self.root, text="Show Prediction", command=self.set_display_mode, variable=self.show_prediction, value=1)
+        radiobutton_2.place(relx=0.025, rely=0.45)
 
         self.fig, self.ax = plt.subplots()
         self.fig.set_size_inches(6, 6)
@@ -92,7 +98,7 @@ class Visualizer:
         masks = F.one_hot(torch.from_numpy(masks).long()).movedim(-1, 0).numpy()[1:]  # the 0 mask is the background [O, W, H]
         frame = frame.astype(np.float32) / 255.0
         orig_img = np.array(frame)
-        mode = self.radio_var.get()
+        mode = self.display_type.get()
         if mode in [2, 3, 5]:
             if mode in [2, 5]:
                 frame = np.zeros_like(frame)
@@ -113,7 +119,7 @@ class Visualizer:
                     frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
 
         # visualize predictions
-        if self.predictor is not None:
+        if self.predictor is not None and self.show_prediction.get() == 1:
             frame = frame * 0.5
             m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(5, "cpu", [frame_idx])
             m_bbxs = m_bbxs[:, :, :, :2]
