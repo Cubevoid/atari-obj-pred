@@ -1,5 +1,6 @@
 defaults:
  - feature_extractor: feature_extractor
+ - data_loader: standard
 
 debug: True
 batch_size: 32
