@@ -15,7 +15,7 @@ class Predictor(nn.Module):
         self.fc2 = nn.Linear(hidden_size, output_size)
         encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
-        self.time_mlp = nn.Sequential(nn.ReLU(), nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, output_size))
+        self.time_mlp = nn.Sequential(nn.Linear(output_size, output_size))
         self.pred_mlp = nn.Sequential(nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, 2))
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:

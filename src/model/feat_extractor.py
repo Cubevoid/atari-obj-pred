@@ -37,7 +37,7 @@ class FeatureExtractor(torch.nn.Module):
         self.num_objects = num_objects
         self.input_size = input_size
         self.conv = nn.Sequential(
-            nn.Conv2d(3 * num_frames, 64, (3, 3), (1, 1), 1),  # input_size x input_size
+            nn.Conv2d(3 * num_frames, 64, (7, 7), (1, 1), 3),  # input_size x input_size
             nn.ReLU(),
             torch.nn.MaxPool2d(2, 2),
             torch.nn.Conv2d(64, 128, (3, 3), (1, 1), 1),  # input_size x input_size -> input_size/2 x input_size/2

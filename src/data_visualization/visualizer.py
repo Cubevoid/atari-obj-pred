@@ -34,14 +34,15 @@ color_map = get_distinct_colors(8)
 
 class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
-        self.data_loader = DataLoader(cfg.game, cfg.num_objects)
+        self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
 
-        feature_extractor_state = torch.load("models/trained/1711831906_feat_extract.pth")
-        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
-        self.feature_extractor.load_state_dict(feature_extractor_state)
-        predictor_state = torch.load("models/trained/1711831906_transformer_predictor.pth")
-        self.predictor = Predictor()
-        self.predictor.load_state_dict(predictor_state)
+        # feature_extractor_state = torch.load("models/trained/Pong/1711831906_feat_extract.pth", map_location='cpu')
+        # self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
+        # self.feature_extractor.load_state_dict(feature_extractor_state)
+        # predictor_state = torch.load("models/trained/Pong/1711831906_transformer_predictor.pth", map_location='cpu')
+        # self.predictor = Predictor()
+        # self.predictor.load_state_dict(predictor_state)
+        self.predictor = None
 
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()

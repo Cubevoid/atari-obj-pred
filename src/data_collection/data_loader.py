@@ -110,7 +110,7 @@ class DataLoader:
 
         states_tensor = states_tensor.reshape(*states_tensor.shape[:1], -1, *states_tensor.shape[3:])
         states_tensor = F.interpolate(states_tensor, (128, 128))
-        states_tensor = states_tensor.reshape((-1, 12, 128, 128))
+        states_tensor = states_tensor.reshape((-1, 3 * self.history_len, 128, 128))
 
         masks_tensor = torch.from_numpy(np.array(masks)).to(device)
         masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]
