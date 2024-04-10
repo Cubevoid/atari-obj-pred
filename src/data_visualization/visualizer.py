@@ -34,7 +34,7 @@ color_map = get_distinct_colors(8)
 
 class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
-        self.data_loader = DataLoader(cfg.game, cfg.num_objects)
+        self.data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects)
 
         feature_extractor_state = torch.load("models/trained/1711831906_feat_extract.pth")
         self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
@@ -110,7 +110,7 @@ class Visualizer:
             for i, box in enumerate(boxes):
                 x, y, w, h = box
                 if x != 0 or y != 0:
-                    frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color_map[i], 1)  # pylint: disable=no-member
 
         # visualize predictions
         if self.predictor is not None:

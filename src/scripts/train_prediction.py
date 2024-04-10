@@ -21,7 +21,7 @@ def train(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_mlp = cfg.predictor == "mlp"
 
-    data_loader = DataLoader(cfg.game, cfg.num_objects, val_pct=0, test_pct=0.3)
+    data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects, val_pct=0, test_pct=0.3)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
 
