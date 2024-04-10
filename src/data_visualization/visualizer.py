@@ -97,7 +97,6 @@ class Visualizer:
         masks = self.data_loader.detected_masks[frame_idx]
         masks = F.one_hot(torch.from_numpy(masks).long()).movedim(-1, 0).numpy()[1:]  # the 0 mask is the background [O, W, H]
         frame = frame.astype(np.float32) / 255.0
-        orig_img = np.array(frame)
         mode = self.display_type.get()
         if mode in [2, 3, 5]:
             if mode in [2, 5]:

@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Any, Iterable, List, Tuple
 import os
 import numpy as np
 import numpy.typing as npt
@@ -74,12 +74,12 @@ class DataLoader:
             start, end = self.num_train, self.num_train + self.num_val
         elif data_type == "test":
             start, end = self.num_train + self.num_val, len(self.frames)
-        frames: np.ndarray[os.Any, os.Any] = np.random.choice(np.arange(start + time_steps, end - self.history_len), size=batch_size)
+        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + time_steps, end - self.history_len), size=batch_size)
         states_tensor, object_bounding_boxes_tensor, masks_tensor, actions = self.sample_idxes(time_steps, device, frames)
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
 
-    def sample_idxes(self, time_steps, device, frames) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[int]]:
+    def sample_idxes(self, time_steps: int, device: str, frames: Iterable[int]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[int]]:
         """
         Sample a given array of indexes (frames)
         Args:
