@@ -31,7 +31,7 @@ def train(cfg: DictConfig) -> None:
     wandb.watch(predictor, log=None, log_freq=100, idx=2)
 
     criterion = nn.MSELoss().to(device)
-    optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(predictor.parameters()), lr=1e-3)
+    optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(predictor.parameters()), lr=cfg.lr)
 
     for i in tqdm(range(cfg.num_iterations)):
         images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps, device)
