@@ -15,8 +15,8 @@ class Predictor(nn.Module):
         self.fc2 = nn.Linear(hidden_size, output_size)
         encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
-        self.fc3 = nn.Linear(output_size, output_size)
-        self.fc4 = nn.Linear(output_size, 2)
+        self.time_mlp = nn.Sequential(nn.ReLU(), nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, output_size))
+        self.pred_mlp = nn.Sequential(nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, 2))
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
@@ -31,10 +31,10 @@ class Predictor(nn.Module):
         predictions = []
         for i in range(self.time_steps):
             x = self.transformer_encoder(x, mask=mask, src_key_padding_mask=src_key_padding_mask)  # [B, num_objects, output_size]
+            x = self.time_mlp(x)  # [B, num_objects, output_size]
             debug_stats[f'pred_obj_std_mean_{i}'] = x.mean(-1).std()
             predictions.append(x)
         x = torch.stack(predictions, 1)  # [B, time_steps, num_objects, output_size]
-        x = F.relu(self.fc3(x))  # [B, time_steps, num_objects, output_size]
-        x = self.fc4(x)  # [B, time_steps, num_objects, 2]
+        x = self.pred_mlp(x)
         wandb.log(debug_stats)
         return x

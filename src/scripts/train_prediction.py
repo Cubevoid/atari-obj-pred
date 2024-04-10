@@ -22,7 +22,7 @@ def train(cfg: DictConfig) -> None:
     use_mlp = cfg.predictor == "mlp"
 
     data_loader = instantiate(cfg.data_loader, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
-    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
+    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, num_frames=cfg.data_loader.history_len).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))

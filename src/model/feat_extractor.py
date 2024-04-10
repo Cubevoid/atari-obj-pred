@@ -31,7 +31,6 @@ class FeatureExtractor(torch.nn.Module):
     """
     Performs CNN-based feature extraction and ROI pooling.
     """
-
     def __init__(self, input_size: int = 128, num_frames: int = 4, num_objects: int = 32):
         super().__init__()
         self.num_frames = num_frames
