@@ -145,18 +145,22 @@ class DataCollector:
         with torch.no_grad():  # , torch.autocast(device_type=self.device, dtype=torch.float16):
             # Upscale SAM input
             upscaled = cv2.resize(obs, (1024, 1024))
+            no_masks = False
             if isinstance(self.sam, FastSAM):
                 results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
                 if results is None:
-                    masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
+                    no_masks = True
                 else:
                     masks_t = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (1, N, H, W)
+            else:  # SAM
+                seg = self.sam.generate(upscaled)
+                segs: list[npt.NDArray] = [mask["segmentation"] for mask in seg]
+                masks_t = torch.tensor(np.array(segs), dtype=torch.float32, device=self.device).unsqueeze(0)  # (1, N, H, W)
+            if no_masks:
+                masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
             else:
-                masks = self.sam.generate(upscaled)
-                masks = [mask["segmentation"] for mask in masks]
-                masks_t = torch.tensor(np.array(masks), dtype=torch.float32, device=self.device).unsqueeze(0)  # (1, N, H, W)
-            masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
-            masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
+                masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
+                masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
             num_masks = (masks.sum(-1).sum(-1) != 0).sum()
             masks_idx = np.arange(num_masks)  # this is used later in the matching
             masks_center = np.zeros((num_masks, 2))
