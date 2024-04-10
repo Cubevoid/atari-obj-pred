@@ -36,10 +36,10 @@ class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
         self.data_loader = DataLoader(cfg.game, cfg.num_objects)
 
-        feature_extractor_state = torch.load("models/trained/Pong/1711831906_feat_extract.pth", map_location='cpu')
+        feature_extractor_state = torch.load("models/trained/Pong/1712684515_feat_extract.pth", map_location='cpu')
         self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
         self.feature_extractor.load_state_dict(feature_extractor_state)
-        predictor_state = torch.load("models/trained/Pong/1711831906_transformer_predictor.pth", map_location='cpu')
+        predictor_state = torch.load("models/trained/Pong/1712684515_Predictor.pth", map_location='cpu')
         self.predictor = Predictor(num_layers=1, log=False)
         self.predictor.load_state_dict(predictor_state)
 
@@ -130,10 +130,10 @@ class Visualizer:
                     for i, prediction in enumerate(t_pred):
                         x, y = prediction[0] * 210, prediction[1] * 160
                         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
-                for t_pred in m_bbxs[0]:
-                    for i, prediction in enumerate(t_pred):
-                        x, y = prediction[0] * 210, prediction[1] * 160
-                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+                # for t_pred in m_bbxs[0]:
+                #     for i, prediction in enumerate(t_pred):
+                #         x, y = prediction[0] * 210, prediction[1] * 160
+                #         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
 
         self.ax.imshow(frame)
         self.ax.axis("off")
