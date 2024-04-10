@@ -8,7 +8,8 @@ batch_size: 32
 time_steps: 10
 num_objects: 8
 name: debug-training
-game: Pong-FastSAM-x
+game: Pong
+model: SAM
 predictor: transformer
 num_iterations: 1000
 ground_truth_masks: false

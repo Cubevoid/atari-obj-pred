@@ -31,7 +31,7 @@ color_map = get_distinct_colors(8)
 
 class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
-        self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
+        self.data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects, cfg.data_loader.history_len)
         self.time_steps = cfg.time_steps
         self.history_len = cfg.data_loader.history_len
 
@@ -118,7 +118,7 @@ class Visualizer:
             for i, box in enumerate(boxes):
                 x, y, w, h = box
                 if x != 0 or y != 0:
-                    frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color_map[i], 1)  # pylint: disable=no-member
 
         if self.predictor is not None and self.show_prediction.get() != 0:
             frame = self.visualize_prediction(frame, frame_idx)

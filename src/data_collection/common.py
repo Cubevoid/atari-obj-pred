@@ -1,4 +1,4 @@
-def get_data_directory(game: str, model: str = "FastSAM-x") -> str:
+def get_data_directory(game: str, model: str) -> str:
     """
     Gets name of the directory where data is stored for a certain game
     """
