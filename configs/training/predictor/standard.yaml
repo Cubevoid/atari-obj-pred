@@ -1,0 +1,2 @@
+_target_: src.model.predictor.Predictor
+num_layers: 1

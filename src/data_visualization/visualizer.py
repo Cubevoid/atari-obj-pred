@@ -34,11 +34,11 @@ class Visualizer:
         self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
         self.time_steps = cfg.time_steps
         self.history_len = cfg.data_loader.history_len
-        t = 1712852271
+        t = 1712853380
         feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
         self.feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
         self.feature_extractor.load_state_dict(feature_extractor_state)
-        predictor_state = torch.load(f"models/trained/Pong/{t}_Predictor.pth", map_location='cpu')
+        predictor_state = torch.load(f"models/trained/Pong/{t}_ResidualPredictor.pth", map_location='cpu')
         self.predictor = ResidualPredictor(num_layers=1, log=False, time_steps=self.time_steps)
         self.predictor.load_state_dict(predictor_state)
         # self.predictor = None
@@ -133,7 +133,7 @@ class Visualizer:
         gt_positions = positions[:, :self.history_len, :, :]  # [B, H, O, 2]
         with torch.no_grad():
             features = self.feature_extractor(m_frame, m_masks, gt_positions)
-            predictions = self.predictor(features)
+            predictions = self.predictor(features, target[:, 0])
             for t_pred in predictions[0]:
                 for i, prediction in enumerate(t_pred):
                     x, y = prediction[0] * 160, prediction[1] * 210
