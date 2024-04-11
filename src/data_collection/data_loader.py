@@ -62,8 +62,9 @@ class DataLoader:
         time_steps: Number of time steps to sample for bboxes
         data_type: Type of data to sample from. Can be "train", "val" or "test"
         Returns:
-        Tuple containing stacked states [batch_size, time_steps=4, channels=3, H=128, W=128], Object bounding boxes [batch_size, t, num_objects, 4],
-        Masks [batch_size, num_obj, H=128, W=128], Actions [batch_size, t]
+        Tuple containing stacked states [B, H, 3, H=128, W=128],
+        Object bounding boxes [B, H+T, O, 4],
+        Masks [B, O, H, W], Actions [B, T]
         - States are in the past
         - Masks are in the present
         - Bounding boxes, actions are in the future
@@ -74,7 +75,7 @@ class DataLoader:
             start, end = self.num_train, self.num_train + self.num_val
         elif data_type == "test":
             start, end = self.num_train + self.num_val, len(self.frames)
-        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + self.history_len, end - self.history_len), size=batch_size)
+        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + self.history_len, end - time_steps), size=batch_size)
         states_tensor, object_bounding_boxes_tensor, masks_tensor, actions = self.sample_idxes(time_steps, device, frames)
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
@@ -95,14 +96,14 @@ class DataLoader:
         actions = []
         for idx in frames:
             frame = self.frames[idx - self.history_len : idx]
-            object_bounding_boxes = self.object_bounding_boxes[idx : idx + time_steps]  # [T, O, 4] future bboxes
+            object_bounding_boxes = self.object_bounding_boxes[idx - self.history_len : idx + time_steps]  # [H + T, O, 4] past and future bboxes
             mask = self.detected_masks[idx]  # [O, H, W]
             action = self.actions[idx : idx + time_steps]  # [T]
-            last_idxs = self.last_idx[idx : idx + time_steps]  # [T, O]
+            last_idxs = self.last_idx[idx - self.history_len: idx + time_steps]  # [T, O]
             objs = object_bounding_boxes[0].sum(-1) != 0  # [O]
             orderd_bbxs = np.zeros_like(object_bounding_boxes)  # [T, O, 4] ordered by the initial object they are tracking
             order = np.arange(objs.sum())  # [o]
-            for t in range(time_steps):
+            for t in range(self.history_len + time_steps):
                 orderd_bbxs[t, order] = object_bounding_boxes[t, objs]
                 order = last_idxs[t, order]
             states.append(frame)
@@ -115,8 +116,8 @@ class DataLoader:
         states_tensor = states_tensor.permute(0, 1, 4, 2, 3)  # [B, T, C, H, W]
         object_bounding_boxes_tensor = torch.from_numpy(np.array(object_bounding_boxes_list)).to(device)
         object_bounding_boxes_tensor = object_bounding_boxes_tensor.float()
-        w = states_tensor.shape[-2]
-        h = states_tensor.shape[-1]
+        w = states_tensor.shape[-1]
+        h = states_tensor.shape[-2]
         object_bounding_boxes_tensor /= torch.Tensor([w, h, w, h]).to(device).float()
         object_bounding_boxes_tensor = object_bounding_boxes_tensor[:, :, : self.num_obj]
 

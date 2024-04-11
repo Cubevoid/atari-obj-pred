@@ -204,7 +204,7 @@ def train(cfg: DictConfig) -> None:
     use_mlp = cfg.predictor == "mlp"
 
     data_loader = instantiate(cfg.data_loader, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
-    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, num_frames=cfg.data_loader.history_len).to(device)
+    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
@@ -220,10 +220,12 @@ def train(cfg: DictConfig) -> None:
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
-        target = bboxes[:, :, :, :2]  # [B, T, O, 2]
+        positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
+        target = positions[:, cfg.data_loader.history_len:, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, :cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
 
         # Run models
-        features: torch.Tensor = feature_extractor(images, masks)
+        features: torch.Tensor = feature_extractor(images, masks, gt_positions)
         output: torch.Tensor = predictor(features)
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
@@ -266,8 +268,10 @@ def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn
         images, bboxes, masks, _ = data_loader.sample(num_samples, cfg.time_steps, device, data_type="test")
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
-        target = bboxes[:, :, :, :2]  # [B, T, O, 2]
-        features: torch.Tensor = feature_extractor(images, masks)
+        positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
+        target = positions[:, cfg.data_loader.history_len:, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, :cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
+        features: torch.Tensor = feature_extractor(images, masks, gt_positions)
         output: torch.Tensor = predictor(features)
         loss: torch.Tensor = criterion(output, target)
         log_dict = eval_metrics(cfg, features, target, output, loss, prefix="test")
