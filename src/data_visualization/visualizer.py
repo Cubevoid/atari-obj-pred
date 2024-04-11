@@ -7,12 +7,13 @@ import torch.nn.functional as F
 import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np
-import matplotlib as plt
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from src.data_collection.data_loader import DataLoader
 from src.model.feat_extractor import FeatureExtractor
 from src.model.predictor import Predictor
+from src.model.residual_predictor import ResidualPredictor
 
 
 # generate a list of 32 distinct colors for matplotlib
@@ -35,12 +36,12 @@ class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
         self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
         self.time_steps = cfg.time_steps
-        t = 1712847085
+        t = 1712852271
         feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
         self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects, num_frames=cfg.data_loader.history_len)
         self.feature_extractor.load_state_dict(feature_extractor_state)
         predictor_state = torch.load(f"models/trained/Pong/{t}_Predictor.pth", map_location='cpu')
-        self.predictor = Predictor(num_layers=1, log=False, time_steps=self.time_steps)
+        self.predictor = ResidualPredictor(num_layers=1, log=False, time_steps=self.time_steps)
         self.predictor.load_state_dict(predictor_state)
         # self.predictor = None
         ctk.set_appearance_mode("dark")
@@ -101,10 +102,15 @@ class Visualizer:
         if mode in [2, 3, 5]:
             if mode in [2, 5]:
                 frame = np.zeros_like(frame)
-                if mode == 5:
-                    mask_ys, mask_xs = np.nonzero(mask == 1)
-                    if mask_xs.size > 0:
-                        frame = cv2.arrowedLine(frame, (int(mask_xs.mean()), int(mask_ys.mean())), (x, y), color_map[i], 1)  # pylint: disable=no-member
+                for i, mask in enumerate(masks):
+                    img = np.zeros_like(frame)
+                    img[mask == 1] = color_map[i][:3]
+                    frame += img * 0.5
+                    x, y, _, _ = boxes[i]
+                    if mode == 5:
+                        mask_ys, mask_xs = np.nonzero(mask == 1)
+                        if mask_xs.size > 0:
+                            frame = cv2.arrowedLine(frame, (int(mask_xs.mean()), int(mask_ys.mean())), (x, y), color_map[i], 1)  # pylint: disable=no-member
         frame = frame.clip(0, 1)
         if mode in [4, 5]:
             for i, box in enumerate(boxes):
@@ -123,10 +129,10 @@ class Visualizer:
                     for i, prediction in enumerate(t_pred):
                         x, y = prediction[0] * 210, prediction[1] * 160
                         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
-                # for t_pred in m_bbxs[0]:
-                #     for i, prediction in enumerate(t_pred):
-                #         x, y = prediction[0] * 210, prediction[1] * 160
-                #         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+                for t_pred in m_bbxs[0]:
+                    for i, prediction in enumerate(t_pred):
+                        x, y = prediction[0] * 210, prediction[1] * 160
+                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
         self.ax.imshow(frame)
         self.ax.axis("off")
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
