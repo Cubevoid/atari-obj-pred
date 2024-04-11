@@ -31,13 +31,14 @@ class FeatureExtractor(torch.nn.Module):
     """
     Performs CNN-based feature extraction and ROI pooling.
     """
-    def __init__(self, input_size: int = 128, num_frames: int = 4, num_objects: int = 32):
+    def __init__(self, input_size: int = 128, history_len: int = 4, num_objects: int = 32, use_ground_truth_pos: bool = False):
         super().__init__()
-        self.num_frames = num_frames
+        self.num_frames = history_len
         self.num_objects = num_objects
         self.input_size = input_size
+        self.use_ground_truth_pos = use_ground_truth_pos
         self.conv = nn.Sequential(
-            nn.Conv2d(3 * num_frames, 64, (7, 7), (1, 1), 3),  # input_size x input_size
+            nn.Conv2d(3 * history_len, 64, (7, 7), (1, 1), 3),  # input_size x input_size
             nn.ReLU(),
             torch.nn.MaxPool2d(2, 2),
             torch.nn.Conv2d(64, 128, (3, 3), (1, 1), 1),  # input_size x input_size -> input_size/2 x input_size/2
@@ -45,6 +46,9 @@ class FeatureExtractor(torch.nn.Module):
         )
         self.relu = torch.nn.ReLU()
         self.position_embed = SoftPositionEmbed(128, (64, 64))
+        if self.use_ground_truth_pos:
+            self.past_movement_encoding= nn.Sequential(nn.Linear(2 * history_len, 128))
+            self.object_embed = nn.Sequential(nn.Linear(256, 128))
 
     def roi_pool(self, x: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
         """
@@ -61,16 +65,22 @@ class FeatureExtractor(torch.nn.Module):
         masked = x.unsqueeze(1) * rois.unsqueeze(2)
         return masked.max(-1).values.max(-1).values  # (B, num_objects, 128)
 
-    def forward(self, images: torch.Tensor, rois: torch.Tensor) -> torch.Tensor:
+    def forward(self, images: torch.Tensor, rois: torch.Tensor, gt_pos: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            images: (B, num_frames*3, input_size, input_size) input image tensor
+            images: [B, H*3, input_size, input_size] input image tensor
+            rois: [B, num_objects, input_size, input_size] ROI masks
+            gt_pos: [B, H, num_objects, 2] ground truth positions
         Returns:
-            (B, num_objects, 128) feature vector
+            [B, num_objects, 128] feature vector
         """
         assert len(images.shape) == 4, f"Expected 4D tensor, got {images.shape}"
         assert images.shape[-1] == images.shape[-2] == self.input_size, f"Expected input size {self.input_size}, got {images.shape}"
         images = self.conv(images)  # [input_size/2, input_size/2]
         images = self.position_embed(images)
         objects = self.roi_pool(images, rois)
+        if self.use_ground_truth_pos:
+            pos_encoded = self.past_movement_encoding(gt_pos.swapdims(1, 2).flatten(-2))
+            objects = torch.concat([objects, pos_encoded], dim=-1)
+            objects = self.object_embed(objects)
         return objects
