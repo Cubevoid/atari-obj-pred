@@ -1,0 +1,2 @@
+_target_: src.model.feat_extractor.FeatureExtractor
+use_ground_truth_pos: true

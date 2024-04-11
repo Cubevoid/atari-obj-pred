@@ -39,7 +39,7 @@ class Visualizer:
 
         t = 1712847085
         feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
-        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects, num_frames=cfg.data_loader.history_len)
+        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
         self.feature_extractor.load_state_dict(feature_extractor_state)
         predictor_state = torch.load(f"models/trained/Pong/{t}_Predictor.pth", map_location='cpu')
         self.predictor = Predictor(num_layers=1, log=False, time_steps=self.time_steps)
