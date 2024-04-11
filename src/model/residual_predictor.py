@@ -41,7 +41,7 @@ class ResidualPredictor(nn.Module):
         if self.log:
             wandb.log(debug_stats)
 
-        new_output = torch.zeros((curr_pos.size()[0], self.time_steps, curr_pos.size()[1], 2))
+        new_output = torch.zeros((curr_pos.size()[0], self.time_steps, curr_pos.size()[1], 2), device=x.device)
         new_output[:, 0, :, :] = curr_pos
         for j in range(self.time_steps-1):
             new_output[:, j+1, :, :] = new_output[:, j, :, :] + x[:, j, :, :]
