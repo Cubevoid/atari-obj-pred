@@ -19,7 +19,8 @@ class ResidualPredictor(nn.Module):
         self.fc3 = nn.Linear(output_size, output_size)
         self.fc4 = nn.Linear(output_size, 2)
 
-    def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, mask: Optional[torch.Tensor] = None,
+                src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Args:
             x: (B, num_objects, 128) feature vector
