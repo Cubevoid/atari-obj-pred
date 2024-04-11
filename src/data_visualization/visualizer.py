@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import customtkinter as ctk  # type: ignore
 import cv2  # type: ignore
 import numpy as np
+import numpy.typing as npt
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from hydra.utils import instantiate
@@ -34,7 +35,7 @@ class Visualizer:
         self.time_steps = cfg.time_steps
         self.history_len = cfg.data_loader.history_len
 
-        t = 1712848868
+        t = 1712850745
         feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
         self.feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
         self.feature_extractor.load_state_dict(feature_extractor_state)
@@ -119,28 +120,31 @@ class Visualizer:
                 if x != 0 or y != 0:
                     frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
 
-        # visualize predictions
         if self.predictor is not None and self.show_prediction.get() != 0:
-            frame = frame * 0.5
-            m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
-            positions = m_bbxs[:, :, :, :2]  # [B, H + T, O, 2]
-            target = positions[:, self.history_len:, :, :]  # [B, T, O, 2]
-            gt_positions = positions[:, :self.history_len, :, :]  # [B, H, O, 2]
-            with torch.no_grad():
-                features = self.feature_extractor(m_frame, m_masks, gt_positions)
-                predictions = self.predictor(features)
-                for t_pred in predictions[0]:
-                    for i, prediction in enumerate(t_pred):
-                        x, y = prediction[0] * 160, prediction[1] * 210
-                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
-                if self.show_prediction.get() == 2:
-                    for t_pred in target[0]:
-                        for i, prediction in enumerate(t_pred):
-                            x, y = prediction[0] * 160, prediction[1] * 210
-                            frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+            frame = self.visualize_prediction(frame, frame_idx)
 
         self.ax.imshow(frame)
         self.ax.axis("off")
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
         self.canvas.draw()
         self.root.update()
+
+    def visualize_prediction(self, frame: npt.NDArray, frame_idx: int) -> npt.NDArray:
+        frame = frame * 0.5
+        m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
+        positions = m_bbxs[:, :, :, :2]  # [B, H + T, O, 2]
+        target = positions[:, self.history_len:, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, :self.history_len, :, :]  # [B, H, O, 2]
+        with torch.no_grad():
+            features = self.feature_extractor(m_frame, m_masks, gt_positions)
+            predictions = self.predictor(features)
+            for t_pred in predictions[0]:
+                for i, prediction in enumerate(t_pred):
+                    x, y = prediction[0] * 160, prediction[1] * 210
+                    frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+            if self.show_prediction.get() == 2:
+                for t_pred in target[0]:
+                    for i, prediction in enumerate(t_pred):
+                        x, y = prediction[0] * 160, prediction[1] * 210
+                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+        return frame
