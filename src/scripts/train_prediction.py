@@ -130,7 +130,7 @@ def eval_metrics(
     log_dict |= {"max_loss": max_loss, "average_movement": average_movement}
     for t in range(cfg.time_steps):
         if t != 0:
-            movement_mask = target[:, t - 1, :, :] - target[:, 0, :, :] != 0
+            movement_mask = target[:, t, :, :] - target[:, 0, :, :] != 0
             total_movement = torch.sum(torch.abs((target[:, t, :, :] - target[:, 0, :, :])))
             log_dict[f"average_movement/time_{t}"] = total_movement / torch.sum(movement_mask)
             log_dict[f"l1_movement_average/time_{t}"] = torch.sum(

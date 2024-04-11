@@ -74,7 +74,7 @@ class DataLoader:
             start, end = self.num_train, self.num_train + self.num_val
         elif data_type == "test":
             start, end = self.num_train + self.num_val, len(self.frames)
-        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + time_steps, end - self.history_len), size=batch_size)
+        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + self.history_len, end - self.history_len), size=batch_size)
         states_tensor, object_bounding_boxes_tensor, masks_tensor, actions = self.sample_idxes(time_steps, device, frames)
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
