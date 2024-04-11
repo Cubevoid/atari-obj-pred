@@ -9,26 +9,22 @@ import cv2  # type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from hydra.utils import instantiate
 
 from src.data_collection.data_loader import DataLoader
-from src.model.feat_extractor import FeatureExtractor
 from src.model.predictor import Predictor
 
 
 # generate a list of 32 distinct colors for matplotlib
 def get_distinct_colors(n: int) -> List[Tuple[float, float, float]]:
     colors = []
-
     for i in np.arange(0.0, 360.0, 360.0 / n):
         h = i / 360.0
         l = (50 + np.random.rand() * 10) / 100.0
         s = (90 + np.random.rand() * 10) / 100.0
         colors.append(hls_to_rgb(h, l, s))
-
     return colors
 
-
-# color_map = [plt.cm.Set1(i) for i in np.linspace(0, 1, 33)]  # type: ignore[attr-defined] # pylint: disable=no-member
 color_map = get_distinct_colors(8)
 
 
@@ -36,10 +32,11 @@ class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
         self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
         self.time_steps = cfg.time_steps
+        self.history_len = cfg.data_loader.history_len
 
-        t = 1712847085
+        t = 1712848868
         feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
-        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
+        self.feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
         self.feature_extractor.load_state_dict(feature_extractor_state)
         predictor_state = torch.load(f"models/trained/Pong/{t}_Predictor.pth", map_location='cpu')
         self.predictor = Predictor(num_layers=1, log=False, time_steps=self.time_steps)
@@ -76,10 +73,12 @@ class Visualizer:
         radiobutton_5.place(relx=0.025, rely=0.3)
 
         self.show_prediction = tkinter.IntVar(value=0)
-        radiobutton_1 = ctk.CTkRadioButton(self.root, text="No Prediction", command=self.set_display_mode, variable=self.show_prediction, value=0)
-        radiobutton_1.place(relx=0.025, rely=0.4)
-        radiobutton_2 = ctk.CTkRadioButton(self.root, text="Show Prediction", command=self.set_display_mode, variable=self.show_prediction, value=1)
-        radiobutton_2.place(relx=0.025, rely=0.45)
+        radiobutton_6 = ctk.CTkRadioButton(self.root, text="No Prediction", command=self.set_display_mode, variable=self.show_prediction, value=0)
+        radiobutton_6.place(relx=0.025, rely=0.4)
+        radiobutton_7 = ctk.CTkRadioButton(self.root, text="Show Prediction", command=self.set_display_mode, variable=self.show_prediction, value=1)
+        radiobutton_7.place(relx=0.025, rely=0.45)
+        radiobutton_8 = ctk.CTkRadioButton(self.root, text="Show Prediction + GT", command=self.set_display_mode, variable=self.show_prediction, value=2)
+        radiobutton_8.place(relx=0.025, rely=0.5)
 
         self.fig, self.ax = plt.subplots()
         self.fig.set_size_inches(6, 6)
@@ -121,21 +120,24 @@ class Visualizer:
                     frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
 
         # visualize predictions
-        if self.predictor is not None and self.show_prediction.get() == 1:
+        if self.predictor is not None and self.show_prediction.get() != 0:
             frame = frame * 0.5
             m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
-            m_bbxs = m_bbxs[:, :, :, :2]
+            positions = m_bbxs[:, :, :, :2]  # [B, H + T, O, 2]
+            target = positions[:, self.history_len:, :, :]  # [B, T, O, 2]
+            gt_positions = positions[:, :self.history_len, :, :]  # [B, H, O, 2]
             with torch.no_grad():
-                features = self.feature_extractor(m_frame, m_masks)
+                features = self.feature_extractor(m_frame, m_masks, gt_positions)
                 predictions = self.predictor(features)
                 for t_pred in predictions[0]:
                     for i, prediction in enumerate(t_pred):
-                        x, y = prediction[0] * 210, prediction[1] * 160
+                        x, y = prediction[0] * 160, prediction[1] * 210
                         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
-                # for t_pred in m_bbxs[0]:
-                #     for i, prediction in enumerate(t_pred):
-                #         x, y = prediction[0] * 210, prediction[1] * 160
-                #         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+                if self.show_prediction.get() == 2:
+                    for t_pred in target[0]:
+                        for i, prediction in enumerate(t_pred):
+                            x, y = prediction[0] * 160, prediction[1] * 210
+                            frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
 
         self.ax.imshow(frame)
         self.ax.axis("off")
