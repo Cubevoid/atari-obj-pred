@@ -7,8 +7,9 @@ import wandb
 
 class Predictor(nn.Module):
     def __init__(self, input_size: int = 128, hidden_size: int = 32, output_size: int = 120, num_layers: int = 2,
-                 hidden_dim: int = 120, nhead: int = 2, time_steps: int = 5) -> None:
+                 hidden_dim: int = 120, nhead: int = 2, time_steps: int = 5, log: bool = True) -> None:
         super().__init__()
+        self.log = log
         self.time_steps = time_steps
         self.fc1 = nn.Linear(input_size, hidden_size)
         encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim)
@@ -36,5 +37,6 @@ class Predictor(nn.Module):
         x = torch.stack(predictions, 1)  # [B, time_steps, num_objects, output_size]
         x = F.relu(self.fc3(x))  # [B, time_steps, num_objects, output_size]
         x = self.fc4(x)  # [B, time_steps, num_objects, 2]
-        wandb.log(debug_stats)
+        if self.log:
+            wandb.log(debug_stats)
         return x

@@ -1,9 +1,14 @@
+defaults:
+ - feature_extractor: feature_extractor
+
 debug: True
 batch_size: 32
 time_steps: 10
-num_objects: 32
+num_objects: 8
 name: debug-training
 game: Pong
 predictor: transformer
 num_iterations: 1000
-ground_truth_masks: False
+ground_truth_masks: false
+
+save_models: false
