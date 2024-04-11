@@ -2,8 +2,8 @@ defaults:
  - feature_extractor: feature_extractor
 
 debug: True
-batch_size: 32
-time_steps: 10
+batch_size: 10
+time_steps: 4
 num_objects: 8
 name: debug-training
 game: Pong

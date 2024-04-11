@@ -14,6 +14,8 @@ import wandb
 from src.data_collection.data_loader import DataLoader
 from src.model.predictor import Predictor
 from src.model.mlp_predictor import MLPPredictor
+from src.model.current_predictor import CurrentPredictor
+from src.model.residual_predictor import ResidualPredictor
 
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
@@ -23,15 +25,20 @@ def train(cfg: DictConfig) -> None:
 
     data_loader = DataLoader(cfg.game, cfg.num_objects, val_pct=0, test_pct=0.3)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
-    predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
+    #predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
+    current_predictor = CurrentPredictor().to(device)
+    residual_predictor = ResidualPredictor(num_layers=1, time_steps=cfg.time_steps)
 
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
     wandb.log({"batch_size": cfg.batch_size})
     wandb.watch(feature_extractor, log=None, log_freq=100, idx=1)
-    wandb.watch(predictor, log=None, log_freq=100, idx=2)
+    wandb.watch(current_predictor, log=None, log_freq=100, idx=2)
+    wandb.watch(residual_predictor, log=None, log_freq=100, idx=3)
 
     criterion = nn.MSELoss().to(device)
-    optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(predictor.parameters()), lr=1e-3)
+    #optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(current_predictor.parameters()), lr=1e-3)
+    optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(residual_predictor.parameters()), lr=1e-3)
+
 
     for i in tqdm(range(cfg.num_iterations)):
         images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps, device)
@@ -39,19 +46,24 @@ def train(cfg: DictConfig) -> None:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
         target = bboxes[:, :, :, :2]  # [B, T, O, 2]
+        #next_time_step = target[:, 1:, :, :]
+        #prev_time_step = target[:, :-1, :, :]
+        #target = next_time_step - prev_time_step
 
         # Run models
         features: torch.Tensor = feature_extractor(images, masks)
-        output: torch.Tensor = predictor(features)
+        output: torch.Tensor = residual_predictor(features, target[:, 0, :, :])
+
+
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
 
         train_log_dict = eval_metrics(cfg, features, target, output, loss)
 
-        if cfg.debug and i % 200 == 0:
+        if cfg.debug and i % 50 == 0:
             print_log_dict("train", train_log_dict)
-            test_log_dict = test_metrics(cfg, data_loader, feature_extractor, predictor, criterion)
+            test_log_dict = test_metrics(cfg, data_loader, feature_extractor, residual_predictor, criterion)
             print_log_dict("test", test_log_dict)
             wandb.log(test_log_dict)
         wandb.log(train_log_dict)
@@ -59,7 +71,7 @@ def train(cfg: DictConfig) -> None:
 
     if cfg.save_models:
         # save trained model to disk
-        save_models(cfg.game, feature_extractor, predictor)
+        save_models(cfg.game, feature_extractor, residual_predictor)
 
 
 def print_log_dict(prefix: str, log_dict: dict[str, Any]) -> None:
@@ -86,14 +98,14 @@ def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
         target = bboxes[:, :, :, :2]  # [B, T, O, 2]
         features: torch.Tensor = feature_extractor(images, masks)
-        output: torch.Tensor = predictor(features)
+        output: torch.Tensor = predictor(features, target[:, 0, :, :])
         loss: torch.Tensor = criterion(output, target)
         log_dict = eval_metrics(cfg, features, target, output, loss, prefix="test")
     return log_dict
 
 
 def eval_metrics(
-    cfg: DictConfig, features: torch.Tensor, target: torch.Tensor, output: torch.Tensor, loss: torch.Tensor, prefix: str = "train"
+        cfg: DictConfig, features: torch.Tensor, target: torch.Tensor, output: torch.Tensor, loss: torch.Tensor, prefix: str = "train"
 ) -> Dict[str, Any]:
     """
     Calculate the evaluation metrics in a format suitable for wandb.
@@ -115,13 +127,13 @@ def eval_metrics(
     std, corr = nonzero_feats.std(dim=0), torch.corrcoef(nonzero_feats)
     log_dict: Dict[str, Any] = {"loss": loss, "error/x": diff[:, :, :, 0].mean(), "error/y": diff[:, :, :, 1].mean()}
     log_dict["l1_average_with_movement"] = (
-        torch.sum(
-            torch.abs(
-                torch.squeeze(target[:, cfg.time_steps - 1, :, :], dim=1)[movement_mask]
-                - torch.squeeze(output[:, cfg.time_steps - 1, :, :], dim=1)[movement_mask]
+            torch.sum(
+                torch.abs(
+                    torch.squeeze(target[:, cfg.time_steps - 1, :, :], dim=1)[movement_mask]
+                    - torch.squeeze(output[:, cfg.time_steps - 1, :, :], dim=1)[movement_mask]
+                )
             )
-        )
-        / torch.sum(movement_mask)
+            / torch.sum(movement_mask)
     ).item()
 
     log_dict["avg_l1"] = torch.sum(torch.abs(target[mask] - output[mask])) / torch.sum(mask)
@@ -159,10 +171,10 @@ def get_ground_truth_masks(bboxes: torch.Tensor, mask_size: torch.Size, device: 
     for j in range(len(masks)):  # pylint: disable=consider-using-enumerate
         for k in range(len(masks[j])):
             masks[
-                j,
-                k,
-                int(bbox_ints[j][0][k][0]) : int(bbox_ints[j][0][k][0] + bbox_ints[j][0][k][2]),
-                int(bbox_ints[j][0][k][1]) : int(bbox_ints[j][0][k][1] + bbox_ints[j][0][k][3]),
+            j,
+            k,
+            int(bbox_ints[j][0][k][0]) : int(bbox_ints[j][0][k][0] + bbox_ints[j][0][k][2]),
+            int(bbox_ints[j][0][k][1]) : int(bbox_ints[j][0][k][1] + bbox_ints[j][0][k][3]),
             ] = 1
     return masks
 
