@@ -34,14 +34,17 @@ color_map = get_distinct_colors(8)
 
 class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
-        self.data_loader = DataLoader(cfg.game, cfg.num_objects)
+        self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
+        self.time_steps = cfg.time_steps
 
-        feature_extractor_state = torch.load("models/trained/Pong/1712684515_feat_extract.pth", map_location='cpu')
-        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects)
+        t = 1712847085
+        feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
+        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects, num_frames=cfg.data_loader.history_len)
         self.feature_extractor.load_state_dict(feature_extractor_state)
-        predictor_state = torch.load("models/trained/Pong/1712684515_Predictor.pth", map_location='cpu')
-        self.predictor = Predictor(num_layers=1, log=False)
+        predictor_state = torch.load(f"models/trained/Pong/{t}_Predictor.pth", map_location='cpu')
+        self.predictor = Predictor(num_layers=1, log=False, time_steps=self.time_steps)
         self.predictor.load_state_dict(predictor_state)
+        # self.predictor = None
 
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
@@ -120,7 +123,7 @@ class Visualizer:
         # visualize predictions
         if self.predictor is not None and self.show_prediction.get() == 1:
             frame = frame * 0.5
-            m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(5, "cpu", [frame_idx])
+            m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
             m_bbxs = m_bbxs[:, :, :, :2]
             with torch.no_grad():
                 features = self.feature_extractor(m_frame, m_masks)
