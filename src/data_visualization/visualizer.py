@@ -27,8 +27,18 @@ color_map = get_distinct_colors(8)
 
 
 class Visualizer:
-    def __init__(self, game: str) -> None:
-        self.data_loader = DataLoader(game, 32)
+    def __init__(self, cfg: DictConfig) -> None:
+        self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
+        self.time_steps = cfg.time_steps
+
+        t = 1712847085
+        feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
+        self.feature_extractor = FeatureExtractor(num_objects=cfg.num_objects, num_frames=cfg.data_loader.history_len)
+        self.feature_extractor.load_state_dict(feature_extractor_state)
+        predictor_state = torch.load(f"models/trained/Pong/{t}_Predictor.pth", map_location='cpu')
+        self.predictor = Predictor(num_layers=1, log=False, time_steps=self.time_steps)
+        self.predictor.load_state_dict(predictor_state)
+        # self.predictor = None
 
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
@@ -118,6 +128,24 @@ class Visualizer:
                 x, y, w, h = box
                 if x != 0 or y != 0:
                     frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
+
+        # visualize predictions
+        if self.predictor is not None and self.show_prediction.get() == 1:
+            frame = frame * 0.5
+            m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
+            m_bbxs = m_bbxs[:, :, :, :2]
+            with torch.no_grad():
+                features = self.feature_extractor(m_frame, m_masks)
+                predictions = self.predictor(features)
+                for t_pred in predictions[0]:
+                    for i, prediction in enumerate(t_pred):
+                        x, y = prediction[0] * 210, prediction[1] * 160
+                        frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+                # for t_pred in m_bbxs[0]:
+                #     for i, prediction in enumerate(t_pred):
+                #         x, y = prediction[0] * 210, prediction[1] * 160
+                #         frame = cv2.circle(frame, (int(x), int(y)), 1, color_map[i], 1)
+
         self.ax.imshow(frame)
         self.ax.axis("off")
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)

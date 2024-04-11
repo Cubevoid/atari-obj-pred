@@ -1,7 +1,9 @@
 defaults:
  - feature_extractor: feature_extractor
+ - data_loader: standard
 
 debug: True
+lr: 0.001
 batch_size: 32
 time_steps: 10
 num_objects: 8

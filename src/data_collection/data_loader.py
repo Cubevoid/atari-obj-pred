@@ -10,11 +10,11 @@ from src.data_collection.common import get_data_directory, get_id_from_episode_n
 
 
 class DataLoader:
-    def __init__(self, game: str, num_obj: int, train_pct: float = 0.7, val_pct: float = 0.15, test_pct: float = 0.15):
+    def __init__(self, game: str, num_obj: int, history_len: int, train_pct: float = 0.7, val_pct: float = 0.15, test_pct: float = 0.15):
         assert train_pct + val_pct + test_pct == 1, "Train, validation and test percentages should sum to 1"
         self.dataset_path = get_data_directory(game)
         self.load_data()
-        self.history_len = 4
+        self.history_len = history_len
         self.num_obj = num_obj
         self.num_train = int(((train_pct * len(self.frames))) // self.history_len) * self.history_len
         self.num_val = int(((val_pct * len(self.frames))) // self.history_len) * self.history_len
@@ -74,7 +74,7 @@ class DataLoader:
             start, end = self.num_train, self.num_train + self.num_val
         elif data_type == "test":
             start, end = self.num_train + self.num_val, len(self.frames)
-        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + time_steps, end - self.history_len), size=batch_size)
+        frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + self.history_len, end - self.history_len), size=batch_size)
         states_tensor, object_bounding_boxes_tensor, masks_tensor, actions = self.sample_idxes(time_steps, device, frames)
 
         return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
@@ -122,7 +122,7 @@ class DataLoader:
 
         states_tensor = states_tensor.reshape(*states_tensor.shape[:1], -1, *states_tensor.shape[3:])
         states_tensor = F.interpolate(states_tensor, (128, 128))
-        states_tensor = states_tensor.reshape((-1, 12, 128, 128))
+        states_tensor = states_tensor.reshape((-1, 3 * self.history_len, 128, 128))
 
         masks_tensor = torch.from_numpy(np.array(masks)).to(device)
         masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]
