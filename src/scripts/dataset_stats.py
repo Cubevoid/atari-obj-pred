@@ -4,8 +4,8 @@ from matplotlib import pyplot as plt
 from src.data_collection.data_loader import DataLoader
 
 
-def main():
-    print(f"Loading data...")
+def main() -> None:
+    print("Loading data...")
     dl_sam = DataLoader("Pong", "SAM", 32)
     dl_fastsam = DataLoader("Pong", "FastSAM-x", 32)
     num_frames = min(len(dl_sam.frames), len(dl_fastsam.frames))
