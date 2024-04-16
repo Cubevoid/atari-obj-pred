@@ -172,6 +172,7 @@ def save_models(game: str, feature_extractor: nn.Module, predictor: nn.Module) -
     os.makedirs(to_absolute_path(f"./models/trained/{game}"), exist_ok=True)
     torch.save(feature_extractor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_feat_extract.pth"))
     torch.save(predictor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_{type(predictor).__name__}.pth"))
+    print(f"Saved models at {unix_time}")
 
 
 def get_ground_truth_masks(bboxes: torch.Tensor, mask_size: torch.Size, device: str) -> torch.Tensor:
