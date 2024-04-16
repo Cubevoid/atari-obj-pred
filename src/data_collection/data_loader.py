@@ -14,7 +14,7 @@ class DataLoader:
                  test_pct: float = 0.15, max_data: int = 1000000):
         assert train_pct + val_pct + test_pct == 1, "Train, validation and test percentages should sum to 1"
         self.max_data = max_data
-        self.dataset_path = get_data_directory(game)
+        self.dataset_path = get_data_directory(game, model)
         self.load_data()
         self.history_len = history_len
         self.num_obj = num_obj
