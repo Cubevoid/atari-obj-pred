@@ -12,32 +12,11 @@ from hydra.utils import to_absolute_path, instantiate
 import wandb
 
 from src.data_collection.data_loader import DataLoader
-from src.model.predictor import Predictor
-from src.model.mlp_predictor import MLPPredictor
-import os
-import time
-import typing
-from typing import Any, Dict
-
-from omegaconf import DictConfig, OmegaConf
-from tqdm import tqdm
-import torch
-from torch import nn
-import hydra
-from hydra.utils import to_absolute_path, instantiate
-import wandb
-
-from src.data_collection.data_loader import DataLoader
-#from src.model.predictor import Predictor
-#from src.model.mlp_predictor import MLPPredictor
-from src.model.current_predictor import CurrentPredictor
-from src.model.residual_predictor import ResidualPredictor
 
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
 def train(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    use_mlp = cfg.predictor == "mlp"
 
     data_loader = instantiate(cfg.data_loader, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len).to(device)

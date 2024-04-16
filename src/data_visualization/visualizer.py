@@ -13,8 +13,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from hydra.utils import instantiate
 
 from src.data_collection.data_loader import DataLoader
-from src.model.predictor import Predictor
-from src.model.residual_predictor import ResidualPredictor
 
 
 # generate a list of 32 distinct colors for matplotlib
@@ -37,11 +35,11 @@ class Visualizer:
         # t = 1712855108  # pong - residual predictor
         # t = 1712959859  # pong - predictor
         # t = 1712962140  # pong - residual predictor t=20
-        t = 1712963786  # pong - residual predictor, gt_pos
-        t = 1712969070  # pong - residual, 8 history
-        t = 1712969847  # pong - residual, 20k
+        # t = 1712963786  # pong - residual predictor, gt_pos
+        # t = 1712969070  # pong - residual, 8 history
+        # t = 1712969847  # pong - residual, 20k
         t = 1712970451  # pong - residual, 20k, t=20
-        
+
         try:
             feature_extractor_state = torch.load(f"models/trained/{cfg.game}/{t}_feat_extract.pth", map_location='cpu')
             self.feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
@@ -49,7 +47,7 @@ class Visualizer:
             self.predictor = instantiate(cfg.predictor, time_steps=cfg.time_steps, log=False)
             predictor_state = torch.load(f"models/trained/{cfg.game}/{t}_{type(self.predictor).__name__}.pth", map_location='cpu')
             self.predictor.load_state_dict(predictor_state)
-        except Exception as e:
+        except FileNotFoundError as e:
             print(e)
             self.predictor = None
         ctk.set_appearance_mode("dark")
