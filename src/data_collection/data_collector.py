@@ -143,16 +143,16 @@ class DataCollector:
             masks_t = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (N, H, W)
             masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
             masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
-            num_masks = (masks.sum(-1).sum(-1) != 0).sum()
-            masks_idx = np.arange(num_masks)  # this is used later in the matching
-            masks_center = np.zeros((num_masks, 2))
-            masks_size = np.zeros(num_masks)
-            for i in range(num_masks):
-                mask = masks[i]
-                y, x = np.where(mask)
-                masks_center[i, 0] = x.mean()
-                masks_center[i, 1] = y.mean()
-                masks_size[i] = len(x)
+        num_masks = (masks.sum(-1).sum(-1) != 0).sum()
+        masks_idx = np.arange(num_masks)  # this is used later in the matching
+        masks_center = np.zeros((num_masks, 2))
+        masks_size = np.zeros(num_masks)
+        for i in range(num_masks):
+            mask = masks[i]
+            y, x = np.where(mask)
+            masks_center[i, 0] = x.mean()
+            masks_center[i, 1] = y.mean()
+            masks_size[i] = len(x)
         return masks_idx, masks_center, masks_size, masks
 
     def filter_and_sort_masks(self, orig_size: Tuple[int, int], masks: torch.Tensor) -> torch.Tensor:
