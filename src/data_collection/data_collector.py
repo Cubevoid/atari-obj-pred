@@ -7,6 +7,7 @@ import numpy.typing as npt
 from ocatari.core import OCAtari
 from ocatari.utils import load_agent
 from fastsam import FastSAM  # type: ignore
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator  # type: ignore
 import torch
 from torch.nn import functional as F
 from tqdm import tqdm
@@ -17,8 +18,10 @@ from src.data_collection.common import get_data_directory, get_length_from_episo
 
 
 class DataCollector:
-    def __init__(self, game: str, num_samples: int, max_num_objects: int, small_sam: bool = False) -> None:
+    def __init__(self, game: str, num_samples: int, max_num_objects: int, model: str = "FastSAM-x", force_collect: bool = False) -> None:
+        assert model in ["FastSAM-x", "FastSAM-s", "SAM"], "Model must be one of 'FastSAM-x', 'FastSAM-s', 'SAM'"
         self.game = game
+        self.force_collect = force_collect
         if game == "SimpleTestData":
             self.env = SimpleTestData()
             self.agent = None
@@ -28,7 +31,7 @@ class DataCollector:
         self.num_samples = num_samples
         self.max_num_objects = max_num_objects
 
-        self.dataset_path = get_data_directory(game)
+        self.dataset_path = get_data_directory(game, model)
         os.makedirs(self.dataset_path, exist_ok=True)
 
         self.curr_episode_id = 0
@@ -37,16 +40,20 @@ class DataCollector:
         self.episode_frames: List[npt.NDArray] = []
         self.episode_object_types: List[List[str]] = []
         self.episode_object_bounding_boxes: List[npt.NDArray] = []
-        self.episode_object_xy: List[List[Tuple[int,int]]] = []
+        self.episode_object_xy: List[List[Tuple[int, int]]] = []
         self.episode_object_last_idx: List[List[int]] = []
         self.episode_detected_masks: List[npt.NDArray] = []  # uint8 list of (H, W) masks
         self.episode_actions: List[int] = []
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        weights = "FastSAM-s" if small_sam else "FastSAM-x"
-        self.sam = FastSAM(f"./models/{weights}.pt")
-        self.sam.to(self.device)
-        self.model_name = weights
+        if model in ["FastSAM-x", "FastSAM-s"]:
+            self.sam = FastSAM(f"./models/{model}.pt")
+            self.sam.to(self.device)
+        else:
+            self.sam = sam_model_registry["vit_b"](checkpoint="./models/sam_vit_b_01ec64.pth").to(self.device)
+            self.sam = torch.compile(self.sam)
+            self.sam = SamAutomaticMaskGenerator(self.sam)
+        self.model_name = model
 
     def collect_data(self) -> None:
         """
@@ -56,7 +63,7 @@ class DataCollector:
         progress_bar.update(self.collected_data)
         obs, _ = self.env.reset()
         counter = 0
-        orig_size = typing.cast(Tuple[int,int], obs.shape[:2])
+        orig_size = typing.cast(Tuple[int, int], obs.shape[:2])
         while self.collected_data < self.num_samples:
             counter += 1
             # Generate game frame
@@ -98,13 +105,13 @@ class DataCollector:
 
             wandb.log(log_dir)
             progress_bar.update(1)
-            if terminated or truncated:
+            if terminated or truncated or self.collected_data + counter >= self.num_samples:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
         progress_bar.close()
 
-    def get_ground_truth_data(self) -> Tuple[npt.NDArray, List[str], List[Tuple[int,int]], List[int]]:
+    def get_ground_truth_data(self) -> Tuple[npt.NDArray, List[str], List[Tuple[int, int]], List[int]]:
         """
         Extract the ground truth OCAtari Information from the environment
         """
@@ -119,30 +126,41 @@ class DataCollector:
             object_types.append(obj.category)
             object_bounding_boxes.append(np.array(obj.xywh))
             object_xy.append(obj.xy)
-            last_idx = -1 if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) \
-                or obj.prev_xy not in self.episode_object_xy[-1] \
+            last_idx = (
+                -1
+                if len(self.episode_object_xy) == 0 or obj.prev_xy == (0, 0) or obj.prev_xy not in self.episode_object_xy[-1]
                 else self.episode_object_xy[-1].index(obj.prev_xy)
+            )
             object_last_idx.append(last_idx)
         np_object_bounding_boxes = np.array(object_bounding_boxes)
         return np_object_bounding_boxes, object_types, object_xy, object_last_idx
 
-    def get_masks(self, obs: np.ndarray, padded_size: Tuple[int,int], orig_size: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def get_masks(self, obs: np.ndarray, padded_size: Tuple[int, int], orig_size: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Calls SAM to get the masks from the image
         Returns:
         Tuple of masks_idx, masks_center, masks_size, masks
         """
         # SAM masks
-        with torch.no_grad():# , torch.autocast(device_type=self.device, dtype=torch.float16):
+        with torch.no_grad():  # , torch.autocast(device_type=self.device, dtype=torch.float16):
             # Upscale SAM input
             upscaled = cv2.resize(obs, (1024, 1024))
-            results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
-        if results is None:
-            masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
-        else:
-            masks_t = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (N, H, W)
-            masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
-            masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
+            no_masks = False
+            if isinstance(self.sam, FastSAM):
+                results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
+                if results is None:
+                    no_masks = True
+                else:
+                    masks_t = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (1, N, H, W)
+            else:  # SAM
+                seg = self.sam.generate(upscaled)
+                segs: list[npt.NDArray] = [mask["segmentation"] for mask in seg]
+                masks_t = torch.tensor(np.array(segs), dtype=torch.float32, device=self.device).unsqueeze(0)  # (1, N, H, W)
+            if no_masks:
+                masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
+            else:
+                masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
+                masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
             num_masks = (masks.sum(-1).sum(-1) != 0).sum()
             masks_idx = np.arange(num_masks)  # this is used later in the matching
             masks_center = np.zeros((num_masks, 2))
@@ -153,6 +171,7 @@ class DataCollector:
                 masks_center[i, 0] = x.mean()
                 masks_center[i, 1] = y.mean()
                 masks_size[i] = len(x)
+
         return masks_idx, masks_center, masks_size, masks
 
     def filter_and_sort_masks(self, orig_size: Tuple[int, int], masks: torch.Tensor) -> torch.Tensor:
@@ -164,13 +183,13 @@ class DataCollector:
         Returns:
             List[npt.NDArray] of HxW binary masks
         """
-        good_masks = torch.zeros(
-            size=(masks.shape[0], orig_size[0], orig_size[1]),
-            dtype=torch.bool,
-            device=self.device
-        )  # (num_objects, H, W)
+        good_masks = torch.zeros(size=(masks.shape[0], orig_size[0], orig_size[1]), dtype=torch.bool, device=self.device)  # (num_objects, H, W)
         indiv_masks = sorted(
-            [masks[i,:orig_size[0],:orig_size[1]] for i in range(masks.shape[0]) if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2],
+            [
+                masks[i, : orig_size[0], : orig_size[1]]
+                for i in range(masks.shape[0])
+                if masks[i].sum() > 0 and masks[i].sum() < orig_size[0] * orig_size[1] / 2
+            ],
             key=lambda m: m.sum().item(),
             reverse=True,
         )
@@ -232,6 +251,8 @@ class DataCollector:
         """
         Determine how much data we have already collected
         """
+        if self.force_collect:
+            return 0
         count = 0
         for file in os.listdir(self.dataset_path):
             if file.endswith(".npz"):
