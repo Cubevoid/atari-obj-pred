@@ -21,7 +21,7 @@ def train(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     use_mlp = cfg.predictor == "mlp"
 
-    data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects, val_pct=0, test_pct=0.3)
+    data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects, 4, val_pct=0, test_pct=0.3)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
     predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
 
@@ -39,8 +39,8 @@ def train(cfg: DictConfig) -> None:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
         positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
-        target = positions[:, cfg.data_loader.history_len:, :, :]  # [B, T, O, 2]
-        gt_positions = positions[:, :cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
+        target = positions[:, cfg.data_loader.history_len :, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, : cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
 
         # Run models
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
@@ -87,8 +87,8 @@ def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
         positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
-        target = positions[:, cfg.data_loader.history_len:, :, :]  # [B, T, O, 2]
-        gt_positions = positions[:, :cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
+        target = positions[:, cfg.data_loader.history_len :, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, : cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
         output: torch.Tensor = predictor(features)
         loss: torch.Tensor = criterion(output, target)

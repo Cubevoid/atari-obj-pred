@@ -6,8 +6,8 @@ from src.data_collection.data_loader import DataLoader
 
 def main() -> None:
     print("Loading data...")
-    dl_sam = DataLoader("Pong", "SAM", 32)
-    dl_fastsam = DataLoader("Pong", "FastSAM-x", 32)
+    dl_sam = DataLoader("Pong", "SAM", 32, 4)
+    dl_fastsam = DataLoader("Pong", "FastSAM-x", 32, 4)
     num_frames = min(len(dl_sam.frames), len(dl_fastsam.frames))
     objects_sam = dl_sam.object_types[:num_frames]
     objects_fastsam = dl_fastsam.object_types[:num_frames]
