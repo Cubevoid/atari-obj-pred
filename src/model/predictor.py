@@ -19,7 +19,7 @@ class Predictor(nn.Module):
         self.time_mlp = nn.Sequential(nn.Linear(output_size, output_size))
         self.pred_mlp = nn.Sequential(nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, 2))
 
-    def forward(self, x: torch.Tensor, curr_pos: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: (B, num_objects, 128) feature vector
