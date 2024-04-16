@@ -18,10 +18,9 @@ from src.data_collection.data_loader import DataLoader
 def train(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    data_loader = instantiate(cfg.data_loader, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
+    data_loader = instantiate(cfg.data_loader, cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len).to(device)
     predictor = instantiate(cfg.predictor, time_steps=cfg.time_steps).to(device)
-
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
     wandb.log({"batch_size": cfg.batch_size})
     wandb.watch(feature_extractor, log=None, log_freq=100, idx=1)
@@ -36,8 +35,8 @@ def train(cfg: DictConfig) -> None:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
         positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
-        target = positions[:, cfg.data_loader.history_len:, :, :]  # [B, T, O, 2]
-        gt_positions = positions[:, :cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
+        target = positions[:, cfg.data_loader.history_len :, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, : cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
 
         # Run models
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
@@ -84,8 +83,8 @@ def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
         positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
-        target = positions[:, cfg.data_loader.history_len:, :, :]  # [B, T, O, 2]
-        gt_positions = positions[:, :cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
+        target = positions[:, cfg.data_loader.history_len :, :, :]  # [B, T, O, 2]
+        gt_positions = positions[:, : cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
         output: torch.Tensor = predictor(features, target[:, 0])
         loss: torch.Tensor = criterion(output, target)
