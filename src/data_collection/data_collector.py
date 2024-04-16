@@ -98,7 +98,7 @@ class DataCollector:
 
             wandb.log(log_dir)
             progress_bar.update(1)
-            if terminated or truncated or counter == 10:
+            if terminated or truncated or counter % 10 == 9:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
@@ -138,7 +138,7 @@ class DataCollector:
             upscaled = cv2.resize(obs, (1024, 1024))
             results = self.sam(upscaled, retina_masks=True, imgsz=upscaled.shape[0], conf=0.4, iou=0.9, verbose=False)
         if results is None:
-            masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
+            masks = np.zeros((1, orig_size[0], orig_size[1]), dtype=bool)
         else:
             masks_t = results[0].masks.data.unsqueeze(0).to(torch.float32)  # (N, H, W)
             masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
