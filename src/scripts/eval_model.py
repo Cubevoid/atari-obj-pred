@@ -21,7 +21,7 @@ def eval(cfg: DictConfig) -> None:
 
     data_loader = instantiate(cfg.data_loader, model=cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
 
-    t = 1712970451
+    t = 1713391908
     feature_extractor_state = torch.load(f"models/trained/{cfg.game}/{t}_feat_extract.pth", map_location=device)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
     feature_extractor.load_state_dict(feature_extractor_state)
@@ -36,7 +36,7 @@ def eval(cfg: DictConfig) -> None:
     ninetieth = []
 
     for i in tqdm(range(data_loader.num_train + data_loader.num_val, len(data_loader.frames), cfg.batch_size)):
-        images, bboxes, masks, _ = data_loader.sample_idxes(cfg.time_steps, device, range(i, i + cfg.batch_size))
+        images, bboxes, masks, actions = data_loader.sample_idxes(cfg.time_steps, device, range(i, min(i + cfg.batch_size, len(data_loader.frames)-cfg.time_steps)))
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
@@ -46,13 +46,13 @@ def eval(cfg: DictConfig) -> None:
 
         # Run models
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
-        output: torch.Tensor = predictor(features, target[:, 0])
+        output: torch.Tensor = predictor(features, target[:, 0], actions)
         loss: torch.Tensor = criterion(output, target)
 
         log_dict = eval_metrics(cfg, features, target, output, loss, prefix="test")
-        mean.append(log_dict[f"l1_movement_mean/time_{cfg.time_steps-1}"])
-        med.append(log_dict[f"l1_movement_median/time_{cfg.time_steps-1}"])
-        ninetieth.append(log_dict[f"l1_movement_90th_percentile/time_{cfg.time_steps-1}"])
+        mean.append(log_dict[f"test/l1_movement_mean/time_{cfg.time_steps-1}"])
+        med.append(log_dict[f"test/l1_movement_median/time_{cfg.time_steps-1}"])
+        ninetieth.append(log_dict[f"test/l1_movement_90th_percentile/time_{cfg.time_steps-1}"])
 
     print(f"Mean: {sum(mean) / len(mean)}")
     print(f"Median: {sum(med) / len(med)}")
@@ -121,9 +121,9 @@ def eval_metrics(
             total_movement = torch.sum(torch.abs((target[:, t, :, :] - target[:, 0, :, :])))
             log_dict[f"average_movement/time_{t}"] = total_movement / torch.sum(movement_mask)
             l1 = torch.abs(target[:, t, :, :][movement_mask] - output[:, t, :, :][movement_mask])
-            log_dict[f"l1_movement_average/time_{t}"] = torch.mean(l1)
+            log_dict[f"l1_movement_mean/time_{t}"] = torch.mean(l1)
             log_dict[f"l1_movement_median/time_{t}"] = torch.median(l1)
-            log_dict[f"l1_movement_90th_percentile/time_{t}"] = torch.quantiel(l1, 0.9)
+            log_dict[f"l1_movement_90th_percentile/time_{t}"] = torch.quantile(l1, 0.9)
 
         log_dict[f"error/time_{t}"] = diff[:, t, :, :].mean()
 
