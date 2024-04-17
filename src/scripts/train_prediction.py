@@ -18,7 +18,7 @@ from src.data_collection.data_loader import DataLoader
 def train(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    data_loader = instantiate(cfg.data_loader, cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
+    data_loader = instantiate(cfg.data_loader, model=cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
     feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len).to(device)
     predictor = instantiate(cfg.predictor, time_steps=cfg.time_steps).to(device)
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
@@ -30,7 +30,7 @@ def train(cfg: DictConfig) -> None:
     optimizer = torch.optim.Adam(list(feature_extractor.parameters()) + list(predictor.parameters()), lr=cfg.lr)
 
     for i in tqdm(range(cfg.num_iterations)):
-        images, bboxes, masks, _ = data_loader.sample(cfg.batch_size, cfg.time_steps, device)
+        images, bboxes, masks, actions = data_loader.sample(cfg.batch_size, cfg.time_steps, device)
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
@@ -40,7 +40,7 @@ def train(cfg: DictConfig) -> None:
 
         # Run models
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
-        output: torch.Tensor = predictor(features, target[:, 0])
+        output: torch.Tensor = predictor(features, target[:, 0], actions)
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
@@ -79,14 +79,14 @@ def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn
     predictor.eval()
     num_samples = cfg.batch_size
     with torch.no_grad():
-        images, bboxes, masks, _ = data_loader.sample(num_samples, cfg.time_steps, device, data_type="test")
+        images, bboxes, masks, actions = data_loader.sample(num_samples, cfg.time_steps, device, data_type="test")
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
         positions = bboxes[:, :, :, :2]  # [B, H + T, O, 2]
         target = positions[:, cfg.data_loader.history_len :, :, :]  # [B, T, O, 2]
         gt_positions = positions[:, : cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
-        output: torch.Tensor = predictor(features, target[:, 0])
+        output: torch.Tensor = predictor(features, target[:, 0], actions)
         loss: torch.Tensor = criterion(output, target)
         log_dict = eval_metrics(cfg, features, target, output, loss, prefix="test")
     return log_dict
