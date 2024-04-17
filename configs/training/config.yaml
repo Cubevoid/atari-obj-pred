@@ -1,7 +1,7 @@
 defaults:
  - feature_extractor: feature_extractor
  - data_loader: standard
- - predictor: residual
+ - predictor: standard
 
 debug: True
 lr: 0.001
