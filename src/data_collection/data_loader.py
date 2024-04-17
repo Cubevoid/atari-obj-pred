@@ -84,9 +84,9 @@ class DataLoader:
         frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + self.history_len, end - time_steps), size=batch_size)
         states_tensor, object_bounding_boxes_tensor, masks_tensor, actions = self.sample_idxes(time_steps, device, frames)
 
-        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions)).to(device)
+        return states_tensor, object_bounding_boxes_tensor, masks_tensor, actions
 
-    def sample_idxes(self, time_steps: int, device: str, frames: Iterable[int]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[int]]:
+    def sample_idxes(self, time_steps: int, device: str, frames: Iterable[int]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Sample a given array of indexes (frames)
         Args:
@@ -135,4 +135,4 @@ class DataLoader:
         masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]
         masks_tensor = masks_tensor.permute(0, 3, 1, 2)
         masks_tensor = F.interpolate(masks_tensor, (128, 128))
-        return states_tensor, object_bounding_boxes_tensor, masks_tensor, actions
+        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
