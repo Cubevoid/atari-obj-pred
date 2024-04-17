@@ -13,11 +13,12 @@ class ResidualPredictor(nn.Module):
         self.time_steps = time_steps
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, output_size)
-        encoder_layers = nn.TransformerEncoderLayer(d_model=output_size+embed_dim, nhead=nhead, dim_feedforward=hidden_dim, batch_first=True)
+        encoder_layers = nn.TransformerEncoderLayer(d_model=output_size, nhead=nhead, dim_feedforward=hidden_dim, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
-        self.fc3 = nn.Linear(output_size+embed_dim, output_size)
+        self.fc3 = nn.Linear(output_size, output_size)
         self.fc4 = nn.Linear(output_size, 2)
-        self.action_embedding = nn.Linear(self.time_steps, embed_dim)
+        self.action_embedding = nn.Linear(1, embed_dim)
+        self.embedding = nn.Linear(output_size + embed_dim, output_size)
 
     def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
         """
@@ -31,13 +32,15 @@ class ResidualPredictor(nn.Module):
         debug_stats = {'obj_std_mean': x.mean(-1).std()}
         x = F.relu(self.fc1(x))  # [B, num_objects, hidden_size]
         x = self.fc2(x)  # [B, num_objects, output_size]
-        act_embed = self.action_embedding(actions.float()) # [B, 8]
-        act_embed = (F.relu(act_embed)).unsqueeze(1) #[B, 1, 8]
-        zeros = torch.zeros((x.size()[0], x.size()[1], act_embed.size()[2])) #[B, num_objects, 8]
-        act_embed = zeros + act_embed #[B, num_objects, 8]
-        x = torch.cat((x, act_embed), dim=2)
+        act_embed = self.action_embedding(actions.float().unsqueeze(-1)) # [B, T, embed_dim]
+        act_embed = F.relu(act_embed)
+        act_embed = act_embed.unsqueeze(-1)
+        zeros = torch.zeros((x.size()[0], act_embed.size()[1], x.size()[1], act_embed.size()[2])) #[B, T, num_objects, embed_dim]
+        act_embed = zeros + act_embed #[B, T, num_objects, embed_dim]
         predictions = []
         for i in range(self.time_steps - 1):
+            x = torch.cat((x, act_embed[:, i, :, :]), dim = 2)
+            x = F.relu(self.embedding(x))
             x = self.transformer_encoder(x)  # [B, num_objects, output_size]
             debug_stats[f'pred_obj_std_mean_{i}'] = x.mean(-1).std()
             predictions.append(x)
