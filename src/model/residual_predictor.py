@@ -17,8 +17,8 @@ class ResidualPredictor(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
         self.fc3 = nn.Linear(output_size, output_size)
         self.fc4 = nn.Linear(output_size, 2)
-        self.action_embedding = nn.Linear(1, embed_dim)
-        self.embedding = nn.Linear(output_size + embed_dim, output_size)
+        self.action_embedding = nn.Embedding(16, embed_dim)
+        self.embedding = nn.Linear(output_size+embed_dim, output_size)
 
     def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
         """
@@ -32,8 +32,7 @@ class ResidualPredictor(nn.Module):
         debug_stats = {'obj_std_mean': x.mean(-1).std()}
         x = F.relu(self.fc1(x))  # [B, num_objects, hidden_size]
         x = self.fc2(x)  # [B, num_objects, output_size]
-        act_embed = self.action_embedding(actions.float().unsqueeze(-1)) # [B, T, embed_dim]
-        act_embed = F.relu(act_embed)
+        act_embed = self.action_embedding(actions) # [B, T, embed_dim]
         act_embed = act_embed.unsqueeze(-1)
         zeros = torch.zeros((x.size()[0], act_embed.size()[1], x.size()[1], act_embed.size()[2])) #[B, T, num_objects, embed_dim]
         act_embed = zeros + act_embed #[B, T, num_objects, embed_dim]
