@@ -112,7 +112,7 @@ def eval_metrics(
         / torch.sum(movement_mask)
     ).item()
 
-    l1_error = torch.abs(target[mask] - output[mask])
+    l1_error = torch.abs(target[mask] - output[mask])[:, -1]
     log_dict["avg_l1"] = torch.sum(l1_error) / torch.sum(mask)
     log_dict["med_l1"] = torch.median(l1_error)
     log_dict["ninetieth_l1"] = torch.quantile(l1_error, 0.9)
