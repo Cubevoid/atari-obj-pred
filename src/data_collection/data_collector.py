@@ -157,7 +157,7 @@ class DataCollector:
                 segs: list[npt.NDArray] = [mask["segmentation"] for mask in seg]
                 masks_t = torch.tensor(np.array(segs), dtype=torch.float32, device=self.device).unsqueeze(0)  # (1, N, H, W)
             if no_masks:
-                masks = np.zeros((1, padded_size[0], padded_size[1]), dtype=bool)
+                masks = np.zeros((1, orig_size[0], orig_size[1]), dtype=bool)
             else:
                 masks_t = F.interpolate(masks_t, padded_size, mode="nearest").to(bool).squeeze(0)
                 masks = self.filter_and_sort_masks(orig_size, masks_t).cpu().numpy()
