@@ -105,7 +105,7 @@ class DataCollector:
 
             wandb.log(log_dir)
             progress_bar.update(1)
-            if terminated or truncated or self.collected_data + counter >= self.num_samples:
+            if terminated or truncated or counter >= self.num_samples:
                 self.store_episode()
                 tqdm.write(f"Finished {self.curr_episode_id - 1} episodes. ({self.collected_data})")
                 obs, _ = self.env.reset()
