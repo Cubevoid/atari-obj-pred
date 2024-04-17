@@ -13,8 +13,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from hydra.utils import instantiate
 
 from src.data_collection.data_loader import DataLoader
-from src.model.predictor import Predictor
-from src.model.residual_predictor import ResidualPredictor
 
 
 # generate a list of 32 distinct colors for matplotlib
@@ -27,21 +25,31 @@ def get_distinct_colors(n: int) -> List[Tuple[float, float, float]]:
         colors.append(hls_to_rgb(h, l, s))
     return colors
 
-color_map = get_distinct_colors(8)
+color_map = get_distinct_colors(32)
 
 class Visualizer:
     def __init__(self, cfg: DictConfig) -> None:
-        self.data_loader = DataLoader(cfg.game, cfg.num_objects, cfg.data_loader.history_len)
+        self.data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects, cfg.data_loader.history_len, max_data=10000)
         self.time_steps = cfg.time_steps
         self.history_len = cfg.data_loader.history_len
-        t = 1712853380
-        feature_extractor_state = torch.load(f"models/trained/Pong/{t}_feat_extract.pth", map_location='cpu')
-        self.feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
-        self.feature_extractor.load_state_dict(feature_extractor_state)
-        predictor_state = torch.load(f"models/trained/Pong/{t}_ResidualPredictor.pth", map_location='cpu')
-        self.predictor = ResidualPredictor(num_layers=1, log=False, time_steps=self.time_steps)
-        self.predictor.load_state_dict(predictor_state)
-        # self.predictor = None
+        # t = 1712855108  # pong - residual predictor
+        # t = 1712959859  # pong - predictor
+        # t = 1712962140  # pong - residual predictor t=20
+        # t = 1712963786  # pong - residual predictor, gt_pos
+        # t = 1712969070  # pong - residual, 8 history
+        # t = 1712969847  # pong - residual, 20k
+        t = 1712970451  # pong - residual, 20k, t=20
+
+        try:
+            feature_extractor_state = torch.load(f"models/trained/{cfg.game}/{t}_feat_extract.pth", map_location='cpu')
+            self.feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len)
+            self.feature_extractor.load_state_dict(feature_extractor_state)
+            self.predictor = instantiate(cfg.predictor, time_steps=cfg.time_steps, log=False)
+            predictor_state = torch.load(f"models/trained/{cfg.game}/{t}_{type(self.predictor).__name__}.pth", map_location='cpu')
+            self.predictor.load_state_dict(predictor_state)
+        except FileNotFoundError as e:
+            print(e)
+            self.predictor = None
         ctk.set_appearance_mode("dark")
         self.root = ctk.CTk()
         self.root.geometry("1200x800+200x200")
@@ -116,7 +124,8 @@ class Visualizer:
             for i, box in enumerate(boxes):
                 x, y, w, h = box
                 if x != 0 or y != 0:
-                    frame = cv2.rectangle(frame, (x, y), (x+w, y+h), color_map[i], 1)  # pylint: disable=no-member
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color_map[i], 1)  # pylint: disable=no-member
+
         if self.predictor is not None and self.show_prediction.get() != 0:
             frame = self.visualize_prediction(frame, frame_idx)
         self.ax.imshow(frame)

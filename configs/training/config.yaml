@@ -10,6 +10,7 @@ time_steps: 10
 num_objects: 8
 name: debug-training
 game: Pong
+model: SAM
 num_iterations: 1000
 ground_truth_masks: false
 
