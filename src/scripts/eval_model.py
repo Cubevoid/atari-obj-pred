@@ -50,9 +50,9 @@ def eval(cfg: DictConfig) -> None:
         loss: torch.Tensor = criterion(output, target)
 
         log_dict = eval_metrics(cfg, features, target, output, loss, prefix="test")
-        mean.append(log_dict["test/avg_l1"])
-        med.append(log_dict["test/med_l1"])
-        ninetieth.append(log_dict["test/ninetieth_l1"])
+        mean.append(log_dict[f"l1_movement_mean/time_{cfg.time_steps-1}"])
+        med.append(log_dict[f"l1_movement_median/time_{cfg.time_steps-1}"])
+        ninetieth.append(log_dict[f"l1_movement_90th_percentile/time_{cfg.time_steps-1}"])
 
     print(f"Mean: {sum(mean) / len(mean)}")
     print(f"Median: {sum(med) / len(med)}")
