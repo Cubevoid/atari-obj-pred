@@ -32,8 +32,8 @@ class Predictor(nn.Module):
         x = self.fc2(x)  # [B, num_objects, output_size]
         predictions = []
         act_embed = self.action_embedding(actions) # [B, T, embed_dim]
-        act_embed = act_embed.unsqueeze(-1)
-        zeros = torch.zeros((x.size()[0], act_embed.size()[1], x.size()[1], act_embed.size()[2])) #[B, T, num_objects, embed_dim]
+        act_embed = act_embed.unsqueeze(-2)
+        zeros = torch.zeros((x.size()[0], act_embed.size()[1], x.size()[1], act_embed.size()[2]), device=x.device) #[B, T, num_objects, embed_dim]
         act_embed = zeros + act_embed #[B, T, num_objects, embed_dim]
         for i in range(self.time_steps):
             x = torch.cat((x, act_embed[:, i, :, :]), dim = 2)
