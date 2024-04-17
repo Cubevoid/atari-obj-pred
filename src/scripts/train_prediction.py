@@ -129,9 +129,9 @@ def eval_metrics(
     log_dict |= {"std_mean": std.mean(), "std_std": std.std(), "corr_mean": corr.mean(), "corr_std": corr.std()}
     log_dict |= {"max_loss": max_loss, "average_movement": average_movement}
     movement_mask = target[:, cfg.time_steps-1, :, :] - target[:, 0, :, :] != 0
-    log_dict["med_l1_last_t_movement"] = torch.median(torch.abs(target[:, cfg.time_steps, :, :][movement_mask]-output[:, cfg.time_steps, :, :][movement_mask]))
+    log_dict["med_l1_last_t_movement"] = torch.median(torch.abs(target[:, cfg.time_steps-1, :, :][movement_mask]-output[:, cfg.time_steps-1, :, :][movement_mask]))
     mask_size = movement_mask.sum()
-    log_dict["10th_percentile_l1_last_t_movement"] = torch.kthvalue(torch.abs(target[:, cfg.time_steps, :, :][movement_mask]-output[:, cfg.time_steps, :, :][movement_mask]).view(-1), int(0.1*mask_size)).values
+    log_dict["10th_percentile_l1_last_t_movement"] = torch.kthvalue(torch.abs(target[:, cfg.time_steps-1, :, :][movement_mask]-output[:, cfg.time_steps-1, :, :][movement_mask]).view(-1), int(0.9*mask_size)).values
     for t in range(cfg.time_steps):
         if t != 0:
             movement_mask = target[:, t - 1, :, :] - target[:, 0, :, :] != 0
