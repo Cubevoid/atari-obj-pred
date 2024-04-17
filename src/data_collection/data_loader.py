@@ -84,7 +84,7 @@ class DataLoader:
         frames: np.ndarray[Any, Any] = np.random.choice(np.arange(start + self.history_len, end - time_steps), size=batch_size)
         states_tensor, object_bounding_boxes_tensor, masks_tensor, actions = self.sample_idxes(time_steps, device, frames)
 
-        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
+        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions)).to(device)
 
     def sample_idxes(self, time_steps: int, device: str, frames: Iterable[int]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[int]]:
         """
