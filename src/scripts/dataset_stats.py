@@ -31,7 +31,7 @@ def calculate_iou(boxes1, boxes2):
     boxes2_area = (x2_2 - x1_2) * (y2_2 - y1_2)
     union_area = boxes1_area + boxes2_area - intersection_area
     iou = np.where(union_area > 0, intersection_area / union_area, 0)
-    return iou
+    return np.clip(iou, 0, 1)
 
 
 def main(game: str) -> None:
@@ -41,7 +41,7 @@ def main(game: str) -> None:
     num_frames = min(len(dl_sam.frames), len(dl_fastsam.frames))
     print(f"Number of frames: {num_frames}")
     objects_sam = dl_sam.object_bounding_boxes[:num_frames]  # [T, O, 4]
-    objects_fastsam = dl_sam.object_bounding_boxes[:num_frames]  # [T, O, 4]
+    objects_fastsam = dl_fastsam.object_bounding_boxes[:num_frames]  # [T, O, 4]
     obj_per_frame_sam = np.count_nonzero(objects_sam[:, :, :2].sum(-1), axis=-1)
     obj_per_frame_fastsam = np.count_nonzero(objects_fastsam[:, :, :2].sum(-1), axis=-1)
     print(f"Average number of objects per frame for SAM: {np.mean(obj_per_frame_sam)}")
