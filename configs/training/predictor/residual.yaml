@@ -1,0 +1,2 @@
+_target_: src.model.residual_predictor.ResidualPredictor
+num_layers: 1

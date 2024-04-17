@@ -10,8 +10,10 @@ from src.data_collection.common import get_data_directory, get_id_from_episode_n
 
 
 class DataLoader:
-    def __init__(self, game: str, model: str, num_obj: int, history_len: int, train_pct: float = 0.7, val_pct: float = 0.15, test_pct: float = 0.15):
+    def __init__(self, game: str, model: str, num_obj: int, history_len: int, train_pct: float = 0.7, val_pct: float = 0.15,
+                 test_pct: float = 0.15, max_data: int = 1000000):
         assert train_pct + val_pct + test_pct == 1, "Train, validation and test percentages should sum to 1"
+        self.max_data = max_data
         self.dataset_path = get_data_directory(game, model)
         self.load_data()
         self.history_len = history_len
@@ -34,6 +36,7 @@ class DataLoader:
         detected_masks = []
         actions = []
         last_idx = []
+        data_count = 0
         for episode in episodes_paths:
             data = np.load(to_absolute_path(self.dataset_path + episode))
             self.episode_lengths.append(get_length_from_episode_name(episode))
@@ -47,6 +50,9 @@ class DataLoader:
             actions.append(data["episode_actions"])
             last_idx.append(data["episode_last_idx"])
             self.episode_count += 1
+            data_count += len(data["episode_frames"])
+            if data_count > self.max_data:
+                break
         self.frames = np.concatenate(frames, axis=0)
         self.object_types = np.concatenate(object_types, axis=0)
         self.object_bounding_boxes = np.concatenate(object_bounding_boxes, axis=0)

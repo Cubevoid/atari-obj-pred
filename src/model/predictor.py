@@ -1,4 +1,3 @@
-from typing import Optional
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -19,7 +18,7 @@ class Predictor(nn.Module):
         self.time_mlp = nn.Sequential(nn.Linear(output_size, output_size))
         self.pred_mlp = nn.Sequential(nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, 2))
 
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, src_key_padding_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, curr_pos: torch.Tensor) -> torch.Tensor:  # pylint: disable = unused-argument
         """
         Args:
             x: (B, num_objects, 128) feature vector
@@ -31,7 +30,7 @@ class Predictor(nn.Module):
         x = self.fc2(x)  # [B, num_objects, output_size]
         predictions = []
         for i in range(self.time_steps):
-            x = self.transformer_encoder(x, mask=mask, src_key_padding_mask=src_key_padding_mask)  # [B, num_objects, output_size]
+            x = self.transformer_encoder(x)  # [B, num_objects, output_size]
             x = self.time_mlp(x)  # [B, num_objects, output_size]
             debug_stats[f'pred_obj_std_mean_{i}'] = x.mean(-1).std()
             predictions.append(x)

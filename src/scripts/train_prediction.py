@@ -12,19 +12,15 @@ from hydra.utils import to_absolute_path, instantiate
 import wandb
 
 from src.data_collection.data_loader import DataLoader
-from src.model.predictor import Predictor
-from src.model.mlp_predictor import MLPPredictor
 
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
 def train(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    use_mlp = cfg.predictor == "mlp"
 
-    data_loader = DataLoader(cfg.game, cfg.model, cfg.num_objects, 4, val_pct=0, test_pct=0.3)
-    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects).to(device)
-    predictor = (MLPPredictor() if use_mlp else Predictor(num_layers=1, time_steps=cfg.time_steps)).to(device)
-
+    data_loader = instantiate(cfg.data_loader, cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
+    feature_extractor = instantiate(cfg.feature_extractor, num_objects=cfg.num_objects, history_len=cfg.data_loader.history_len).to(device)
+    predictor = instantiate(cfg.predictor, time_steps=cfg.time_steps).to(device)
     wandb.init(project="oc-data-training", entity="atari-obj-pred", name=cfg.name + cfg.game, config=typing.cast(Dict[Any, Any], OmegaConf.to_container(cfg)))
     wandb.log({"batch_size": cfg.batch_size})
     wandb.watch(feature_extractor, log=None, log_freq=100, idx=1)
@@ -44,7 +40,7 @@ def train(cfg: DictConfig) -> None:
 
         # Run models
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
-        output: torch.Tensor = predictor(features)
+        output: torch.Tensor = predictor(features, target[:, 0])
         loss: torch.Tensor = criterion(output, target)
         loss.backward()
         optimizer.step()
@@ -90,7 +86,7 @@ def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn
         target = positions[:, cfg.data_loader.history_len :, :, :]  # [B, T, O, 2]
         gt_positions = positions[:, : cfg.data_loader.history_len, :, :]  # [B, H, O, 2]
         features: torch.Tensor = feature_extractor(images, masks, gt_positions)
-        output: torch.Tensor = predictor(features)
+        output: torch.Tensor = predictor(features, target[:, 0])
         loss: torch.Tensor = criterion(output, target)
         log_dict = eval_metrics(cfg, features, target, output, loss, prefix="test")
     return log_dict
@@ -154,6 +150,7 @@ def save_models(game: str, feature_extractor: nn.Module, predictor: nn.Module) -
     os.makedirs(to_absolute_path(f"./models/trained/{game}"), exist_ok=True)
     torch.save(feature_extractor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_feat_extract.pth"))
     torch.save(predictor.state_dict(), to_absolute_path(f"./models/trained/{game}/{unix_time}_{type(predictor).__name__}.pth"))
+    print(f"Saved models at {unix_time}")
 
 
 def get_ground_truth_masks(bboxes: torch.Tensor, mask_size: torch.Size, device: str) -> torch.Tensor:
