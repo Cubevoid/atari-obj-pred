@@ -59,7 +59,7 @@ def main(game: str) -> None:
     # Calculate IoU between FastSAM and SAM bboxes
     iou = calculate_iou(objects_sam, objects_fastsam).squeeze(-1)
     num_obj = np.maximum(obj_per_frame_sam, obj_per_frame_fastsam)  # per frame
-    ious = [np.mean(iou[i, : num_obj[i]]) for i in range(num_frames)]
+    ious = [np.mean(iou[i, : num_obj[i]]) for i in range(min(num_frames, 50))]
     # Make new plot of IoUs
     plt.figure()
     plt.plot(ious, label="Mean IoU")
