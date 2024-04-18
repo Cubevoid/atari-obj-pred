@@ -17,7 +17,7 @@ class Predictor(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
         self.time_mlp = nn.Sequential(nn.Linear(output_size, output_size))
         self.pred_mlp = nn.Sequential(nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, 2))
-        self.action_embedding = nn.Embedding(16, embed_dim)
+        self.action_embedding = nn.Embedding(18, embed_dim)
         self.embedding = nn.Sequential(nn.Linear(output_size+embed_dim, output_size), nn.ReLU())
 
     def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:  # pylint: disable = unused-argument

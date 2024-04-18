@@ -8,7 +8,7 @@ class PredictorBaseline(nn.Module):
         self.encoder = nn.Sequential(nn.Linear(input_size, input_size), nn.ReLU(), nn.Linear(input_size, input_size))
         self.next_state = nn.Sequential(nn.Linear(input_size, input_size), nn.ReLU(), nn.Linear(input_size, input_size))
         self.output = nn.Sequential(nn.Linear(input_size, input_size), nn.ReLU(), nn.Linear(input_size, 2))
-        self.action_embedding = nn.Embedding(16, embed_dim)
+        self.action_embedding = nn.Embedding(18, embed_dim)
         self.embedding = nn.Sequential(nn.Linear(input_size+embed_dim, input_size), nn.ReLU())
 
     def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
