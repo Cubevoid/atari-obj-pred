@@ -8,10 +8,11 @@ lr: 0.001
 batch_size: 32
 time_steps: 10
 num_objects: 8
-name: debug-training
+name: final-training
 game: Pong
-model: SAM
+model: FastSAM-x
 num_iterations: 1000
 ground_truth_masks: false
+t: 0
 
 save_models: false

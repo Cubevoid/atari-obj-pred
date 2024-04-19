@@ -39,6 +39,7 @@ class Visualizer:
         # t = 1712969070  # pong - residual, 8 history
         # t = 1712969847  # pong - residual, 20k
         t = 1712970451  # pong - residual, 20k, t=20
+        t = 1713406312
 
         try:
             feature_extractor_state = torch.load(f"models/trained/{cfg.game}/{t}_feat_extract.pth", map_location='cpu')
@@ -136,13 +137,13 @@ class Visualizer:
 
     def visualize_prediction(self, frame: npt.NDArray, frame_idx: int) -> npt.NDArray:
         frame = frame * 0.5
-        m_frame, m_bbxs, m_masks, _= self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
+        m_frame, m_bbxs, m_masks, m_actions = self.data_loader.sample_idxes(self.time_steps, "cpu", [frame_idx])
         positions = m_bbxs[:, :, :, :2]  # [B, H + T, O, 2]
         target = positions[:, self.history_len:, :, :]  # [B, T, O, 2]
         gt_positions = positions[:, :self.history_len, :, :]  # [B, H, O, 2]
         with torch.no_grad():
             features = self.feature_extractor(m_frame, m_masks, gt_positions)
-            predictions = self.predictor(features, target[:, 0])
+            predictions = self.predictor(features, target[:, 0], m_actions)
             for t_pred in predictions[0]:
                 for i, prediction in enumerate(t_pred):
                     x, y = prediction[0] * 160, prediction[1] * 210

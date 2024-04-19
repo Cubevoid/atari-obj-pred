@@ -1,1 +1,2 @@
 _target_: src.model.predictor_baseline.PredictorBaseline
+num_actions: 18

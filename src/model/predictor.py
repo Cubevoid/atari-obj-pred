@@ -6,7 +6,7 @@ import wandb
 
 class Predictor(nn.Module):
     def __init__(self, input_size: int = 128, hidden_size: int = 32, output_size: int = 120, num_layers: int = 2,
-                 hidden_dim: int = 120, embed_dim: int = 8, nhead: int = 2, time_steps: int = 5, log: bool = True) -> None:
+                 hidden_dim: int = 120, embed_dim: int = 8, nhead: int = 2, time_steps: int = 5, log: bool = True, num_actions: int = 18) -> None:
         super().__init__()
         self.log = log
         self.time_steps = time_steps
@@ -17,7 +17,7 @@ class Predictor(nn.Module):
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
         self.time_mlp = nn.Sequential(nn.Linear(output_size, output_size))
         self.pred_mlp = nn.Sequential(nn.Linear(output_size, output_size), nn.ReLU(), nn.Linear(output_size, 2))
-        self.action_embedding = nn.Embedding(16, embed_dim)
+        self.action_embedding = nn.Embedding(num_actions, embed_dim)
         self.embedding = nn.Sequential(nn.Linear(output_size+embed_dim, output_size), nn.ReLU())
 
     def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:  # pylint: disable = unused-argument
@@ -32,8 +32,8 @@ class Predictor(nn.Module):
         x = self.fc2(x)  # [B, num_objects, output_size]
         predictions = []
         act_embed = self.action_embedding(actions) # [B, T, embed_dim]
-        act_embed = act_embed.unsqueeze(-1)
-        zeros = torch.zeros((x.size()[0], act_embed.size()[1], x.size()[1], act_embed.size()[2])) #[B, T, num_objects, embed_dim]
+        act_embed = act_embed.unsqueeze(-2)
+        zeros = torch.zeros((x.size()[0], act_embed.size()[1], x.size()[1], act_embed.size()[2]), device=x.device) #[B, T, num_objects, embed_dim]
         act_embed = zeros + act_embed #[B, T, num_objects, embed_dim]
         for i in range(self.time_steps):
             x = torch.cat((x, act_embed[:, i, :, :]), dim = 2)
