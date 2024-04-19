@@ -1,22 +1,18 @@
-import os
-import time
-import typing
 from typing import Any, Dict
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from tqdm import tqdm
 import torch
 from torch import nn
 import hydra
-from hydra.utils import to_absolute_path, instantiate
-import wandb
+from hydra.utils import instantiate
 
 from src.scripts.train_prediction import get_ground_truth_masks
 from src.data_collection.data_loader import DataLoader
 
 
 @hydra.main(version_base=None, config_path="../../configs/training", config_name="config")
-def eval(cfg: DictConfig) -> None:
+def evaluate(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     data_loader = instantiate(cfg.data_loader, model=cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
@@ -61,6 +57,7 @@ def eval(cfg: DictConfig) -> None:
     print(f"Median: {sum(med) / len(med)}")
     print(f"Ninetieth: {sum(ninetieth) / len(ninetieth)}")
 
+
 def test_metrics(cfg: DictConfig, data_loader: DataLoader, feature_extractor: nn.Module, predictor: nn.Module, criterion: Any) -> Dict[str, Any]:
     """
     Test the model on the test set and return the evaluation metrics.
@@ -96,7 +93,7 @@ def eval_metrics(
     Returns:
         A dictionary containing the evaluation metrics
     """
-    mask = target != 0
+    # mask = target != 0
     diff = torch.pow(output - target, 2)
     max_loss = torch.max(torch.abs((output - target))).item()
     total_movement = torch.sum(torch.abs((target[:, cfg.time_steps - 1, :, :] - target[:, 0, :, :])))
@@ -133,5 +130,6 @@ def eval_metrics(
     log_dict = {f"{prefix}/{key}": value for key, value in log_dict.items()}
     return log_dict
 
+
 if __name__ == "__main__":
-    eval()  # pylint: disable=no-value-for-parameter
+    evaluate()  # pylint: disable=no-value-for-parameter
