@@ -2,13 +2,13 @@ import torch
 from torch import nn
 
 class PredictorBaseline(nn.Module):
-    def __init__(self, input_size: int = 128, time_steps: int = 5, embed_dim: int = 8):
+    def __init__(self, input_size: int = 128, time_steps: int = 5, embed_dim: int = 8, num_actions: int = 18, log: bool = False):
         super().__init__()
         self.time_steps = time_steps
         self.encoder = nn.Sequential(nn.Linear(input_size, input_size), nn.ReLU(), nn.Linear(input_size, input_size))
         self.next_state = nn.Sequential(nn.Linear(input_size, input_size), nn.ReLU(), nn.Linear(input_size, input_size))
         self.output = nn.Sequential(nn.Linear(input_size, input_size), nn.ReLU(), nn.Linear(input_size, 2))
-        self.action_embedding = nn.Embedding(18, embed_dim)
+        self.action_embedding = nn.Embedding(num_actions, embed_dim)
         self.embedding = nn.Sequential(nn.Linear(input_size+embed_dim, input_size), nn.ReLU())
 
     def forward(self, x: torch.Tensor, curr_pos: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:

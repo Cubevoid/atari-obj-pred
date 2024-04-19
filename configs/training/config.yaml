@@ -13,5 +13,6 @@ game: Pong
 model: FastSAM-x
 num_iterations: 1000
 ground_truth_masks: false
+t: 0
 
 save_models: false

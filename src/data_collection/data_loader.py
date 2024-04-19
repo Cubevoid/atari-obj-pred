@@ -135,4 +135,4 @@ class DataLoader:
         masks_tensor = F.one_hot(masks_tensor.long(), num_classes=self.num_obj + 1).float()[:, :, :, 1:]
         masks_tensor = masks_tensor.permute(0, 3, 1, 2)
         masks_tensor = F.interpolate(masks_tensor, (128, 128))
-        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions))
+        return states_tensor, object_bounding_boxes_tensor, masks_tensor, torch.from_numpy(np.array(actions)).to(device)
