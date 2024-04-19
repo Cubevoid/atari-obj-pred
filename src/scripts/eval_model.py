@@ -19,7 +19,7 @@ from src.data_collection.data_loader import DataLoader
 def eval(cfg: DictConfig) -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    data_loader = instantiate(cfg.data_loader, model=cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3, max_data=10000)
+    data_loader = instantiate(cfg.data_loader, model=cfg.model, game=cfg.game, num_obj=cfg.num_objects, val_pct=0, test_pct=0.3)
 
     t = cfg.t
     feature_extractor_state = torch.load(f"models/trained/{cfg.game}/{t}_feat_extract.pth", map_location=device)
@@ -36,7 +36,9 @@ def eval(cfg: DictConfig) -> None:
     ninetieth = []
 
     for i in tqdm(range(data_loader.num_train + data_loader.num_val, len(data_loader.frames), cfg.batch_size)):
-        images, bboxes, masks, actions = data_loader.sample_idxes(cfg.time_steps, device, range(i, min(i + cfg.batch_size, len(data_loader.frames)-cfg.time_steps)))
+        if i + cfg.batch_size > len(data_loader.frames) - cfg.time_steps:
+            break
+        images, bboxes, masks, actions = data_loader.sample_idxes(cfg.time_steps, device, range(i, i + cfg.batch_size))
         if cfg.ground_truth_masks:
             masks = get_ground_truth_masks(bboxes, masks.shape, device=device)
 
